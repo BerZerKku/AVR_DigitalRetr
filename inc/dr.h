@@ -16,36 +16,40 @@
  * 	@see ERRORS_TO_FAULT
  * 	@see MAX_ERRORS
  */
+#ifndef __DR_H_
+#define __DR_H_
 
-
-
-#ifdef  AVR
-	#define INLINE __attribute__((always_inline))
-#else
-	#define INLINE inline
-#endif
+#define INLINE __attribute__((always_inline))
 
 class TDigitalRetrans {
 
 protected:
 	/// Размер буфера приема/передачи для цифрового переприема.
 	const static uint8_t BUF_MAX = 20;
-	/// максимальное кол-во байт в послыке протокола КЕДР
+	/// Максимальное кол-во байт в послыке протокола КЕДР.
 	const static uint8_t MAX_STEP = 16;
-	/// Кол-во накопленных ошибок для перехода из предупреждения в аварию
+	/// Кол-во накопленных ошибок для перехода из предупреждения в аварию.
 	const static uint8_t ERRORS_TO_FAULT = 100;
 	/// Максимальное кол-во ошибок
 	const static uint8_t MAX_ERRORS = 200;
-	/// Кол-во мс добавляемых при определении ошибки
+	/// Кол-во мс добавляемых при определении ошибки.
 	const static uint8_t CNT_ERROR = 5;
+	/// Кол-во последовательных посылок, необходимое для достоверной команды.
+	const static uint8_t CNT_COM = 3;
 
-	uint8_t mCodeToCom[256];		///< Таблица код ЦПП -> команда
+	bool	connect;				///< Флаг наличия связи по ЦПП.
+
+	// переменные необходимые для приема
+	uint8_t mCodeToCom[256];		///< Таблица код ЦПП -> команда.
 	uint8_t error;					///< Флаг ошибки ЦПП.
-	uint8_t com;					///< Команда на приеме/передаче.
+	uint8_t comRx;					///< Команда считанная по ЦПП.
+	uint8_t oldCom;					///< Команда в последней посылке.
 	uint8_t cntCom;					///< Кол-во принятых(переданных) посылок.
+	uint8_t stepRx;					///< Текущий шаг приема по протоколу.
 
-	// для обработки по протоколу
-	uint8_t step;
+	// переменные необходимые для передачи
+	uint8_t comTx;					///< Команда передваемая по ЦПП.
+	uint8_t stepTx;					///< Текущий шаг передачи по протоколу.
 
 	/**	Заполнение таблицы сответствия номера команды и кода ЦПП.
 	 *
@@ -66,7 +70,8 @@ protected:
 		}
 	}
 
-	uint8_t buf[BUF_MAX];			///< Буфер приема/передачи.
+	uint8_t bufRx[BUF_MAX];			///< Буфер приемника.
+	uint8_t bufTx[BUF_MAX];			///< Буфер передатчика.
 
 public:
 	/**	Конструктор.
@@ -75,14 +80,32 @@ public:
 	 * 	@see CNT_ERROR
 	 */
 	TDigitalRetrans() {
+		connect = false;
 		error = CNT_ERROR;
-		com = 0;
+		comRx = 0;
 		cntCom = 0;
-		step = 0;
-		buf[0] = 0xAA;
-		buf[1] = 0xAA;
+		stepRx = 0;
+		bufRx[0] = 0xAA;
+		bufRx[1] = 0xAA;
 
 		createTableCodeToCom();
+	}
+
+	/**	Проверка наличия связи по ЦПП в текущий момент.
+	 *
+	 * 	Флаг устанавливается после обнаружения синхробайт и приеме первого
+	 * 	байта команд.
+	 * 	При считываниии флаг сбрасывается. Так что период считывания надо
+	 * 	подобрать так, чтобы он успевал устанавливаться при приеме следующей
+	 * 	посылки.
+	 *
+	 * 	@retval True - связь по ЦПП есть.
+	 * 	@retval False - полных посылок небыло.
+	 */
+	INLINE bool isConnect() {
+		bool t = connect;
+		connect = false;
+		return t;
 	}
 
 	/**	Проверка наличия ошибок в принятых пакетах ЦПП.
@@ -109,13 +132,17 @@ public:
 	/** Установка наличия ошибки в принятых пакетах ЦПП.
 	 *
 	 * 	Если значение счетчика ошибок не превышает \a MAX_ERROR, к счетчику
-	 * 	добавляется \a CNT_ERROR ошибок.
+	 * 	добавляется \a CNT_ERROR ошибок. При этом сбрасывается счетчик принятых
+	 * 	команд и предыдущая команда.
 	 * 	@see MAX_ERRORS
 	 * 	@see CNT_ERROR
 	 */
 	INLINE void setError() {
-		if (error < MAX_ERRORS)
+		if (error < MAX_ERRORS) {
 			error += CNT_ERROR;
+		}
+		cntCom = 0;
+		oldCom = 0;
 	}
 
 	/** Уменьшение кол-ва ошибок в принятых пакетах ЦПП.
@@ -123,8 +150,9 @@ public:
 	 * 	Если значение счетчика больше нуля, то оно уменьшается на единицу.
 	 */
 	INLINE void decError() {
-		if (error > 0)
+		if (error > 1) {
 			error--;
+		}
 	}
 
 	/** Сбрасывает кол-во ошибок в принятых пакетах ЦПП.
@@ -134,56 +162,68 @@ public:
 		error = 0;
 	}
 
+	/**	Возвращает номер принятой команды.
+	 *
+	 * 	Номер команды может быть от 0 до 32.
+	 * 	При вызове номер команды сбрасывается в 0.
+	 *
+	 * 	@return Номер команды [0, 32].
+	 */
+	INLINE uint8_t getCom() {
+		uint8_t t = comRx;
+		comRx = 0;
+		return t;
+	}
+
 	/**	Проверка наличия команды в принятом пакете ЦПП.
 	 *
 	 * 	Проверяются прямые байты команд на наличие в них команды. В пакете
 	 * 	должно быть не более одной команды.
 	 */
 	INLINE void checkCommand() {
-		uint8_t com = 0;
+		uint8_t newcom = 0;
 
 		for (unsigned char i = 2, tCom = 0; i < 10; i += 2, tCom += 8) {
-			uint8_t temp = mCodeToCom[buf[i]];
+			uint8_t temp = mCodeToCom[bufRx[i]];
 			// если число не подходящее - вернуть ошибочный код
 			if (temp > 8) {
 				// в текущем байте обнаружено более одной команды
-				com = 0xFF;
+				newcom= 0xFF;
 				break;
 			} else if (temp != 0) {
-				if (com == 0) {
-					com = tCom + temp;
+				if (newcom == 0) {
+					newcom = tCom + temp;
 				} else {
 					// в посылке обнаружено более одной команды
-					com = 0xFF;
+					newcom = 0xFF;
 					break;
 				}
 			}
 		}
 
-		if (com > 32) {
+		if (newcom > 32) {
 			// ошибка данных в принятом пакете ЦПП
 			setError();
-		} else {
-			// принята команда
-			if (this->com == com) {
+		}
+
+		if (!isWarning()) {
+			// принята команда при отсутствии проблем со связью
+			if (oldCom == newcom) {
 				// увеличение счетчика повторно принятых посылок с этой командой
-				this->cntCom = (this->cntCom < 3) ? this->cntCom + 1 : 3;
+				// при достижении CNT_COM формируется наличие команды
+				// дальше счетчик останавливается
+				if (cntCom <= CNT_COM) {
+					cntCom++;
+					if (cntCom == CNT_COM) {
+						this->comRx = newcom;
+					}
+				}
 			} else {
 				// принята новая команда
-				this->com = com;
-				this->cntCom = 1;
+				oldCom = newcom;
+				cntCom = 1;
 			}
 		}
-	}
-
-	/**	Сброс в 0 обработчика принятых данных.
-	 *
-	 *	Вызывается в случае необходимости начать проверку принятых данных
-	 *	начиная с поиска синхробайт.
-	 *	Необходимо например в случае ошибок в работе UART.
-	 */
-	INLINE void clrProtocol() {
-		step = 0;
 	}
 
 	/**	Проверка принятого байта данных на соответствие протоколу.
@@ -202,9 +242,9 @@ public:
 	 *	-# 	@b b1 - прямоой байт, 		команды 1..8
 	 *	-# 	@b i1 - инверсный байт, 	команды 1..8
 	 *	-#  @b b2 - прямоой байт, 		команды 9..16
-	 *	-#  @b i2 - инверсный байт,	команды 9..16
+	 *	-#  @b i2 - инверсный байт,		команды 9..16
 	 *	-#  @b b3 - прямоой байт, 		команды 17..24
-	 *	-#  @b i3 - инверсный байт,	команды 17..24
+	 *	-#  @b i3 - инверсный байт,		команды 17..24
 	 *	-#	@b b4 - прямоой байт, 		команды 25..32
 	 *	-#	@b i4 - инверсный байт, 	команды 25..32
 	 *	@n	v Байты зарезервированные на будущее.
@@ -225,48 +265,61 @@ public:
 	INLINE void checkByteProtocol(uint8_t byte, bool status) {
 		// проверка полученного байта по протоколу
 		if (status) {
-			step = MAX_STEP;
+			stepRx = MAX_STEP;
 		} else {
-			buf[step] = byte;
-			if (step <= 1) {
-				// два синхробайта АА
-				step = (byte == 0xAA) ? step + 1 : 0;
-			} else if (step <= 9) {
+			bufRx[stepRx] = byte;
+
+			if (stepRx == 0) {
+				// первый синхробайт 0хAA
+				if  (byte == 0xAA) {
+					stepRx = 1;
+				}
+			} else if (stepRx == 1) {
+				// второй синхробайт 0хАА
+				// при этом устанавливается флаг наличия связи
+				if (byte == 0xAA) {
+					stepRx = 2;
+					connect = true;
+				} else {
+					stepRx = 0;
+				}
+			} else if (stepRx <= 9) {
 				// 4 прямой + инверсный байта команд
 				// прямой байт записывается в буфер
 				// инверсный сравнивается с ним
-				if ((step % 2) == 0) {
-					step++;
+				if ((stepRx % 2) == 0) {
+					stepRx++;
 				} else {
-					if ((byte ^ buf[step - 1]) == 0xFF) {
-						buf[step++] = byte;
+					if ((byte ^ bufRx[stepRx - 1]) == 0xFF) {
+						bufRx[stepRx++] = byte;
 					} else {
 						// ошибка, прямой байт команды не равен инверсному
-						step = MAX_STEP;
+						stepRx = MAX_STEP;
 					}
 				}
-			} else if (step <= 14) {
+			} else if (stepRx <= 14) {
 				// 5 резервных байт данных
 				// crc не считаем т.к. должны быть равны 0
-				step = (byte == 0) ? step + 1 : MAX_STEP;
-			} else if (step == 15) {
+				stepRx = (byte == 0) ? stepRx + 1 : MAX_STEP;
+			} else if (stepRx == 15) {
 				// проверка контрольной суммы
 				if (byte == 0xFC) {
-					if (!isWarning()) {
-						// сообщение принято
-						checkCommand();
-					}
+					stepRx = 0;
+					checkCommand();
+				} else {
+					// ошибка контрольной суммы
+					stepRx = MAX_STEP;
 				}
-				step = MAX_STEP;
 			}
 		}
 
 		// в случае ошибки обработки протокола
 		// возвращаемся к поиску синхробайт и устанавливаем ошибку
-		if (step >= MAX_STEP) {
-			step = 0;
+		if (stepRx >= MAX_STEP) {
+			stepRx = 0;
 			setError();
 		}
 	}
 };
 
+#endif /* __DR_H_ */
