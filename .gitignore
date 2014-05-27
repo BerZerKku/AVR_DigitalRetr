@@ -2,5 +2,7 @@ Debug/
 Release/
 html/
 default/
+tests/dist/
+tests/build/
 *.aps
 *.aws

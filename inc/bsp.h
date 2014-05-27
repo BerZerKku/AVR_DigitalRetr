@@ -146,7 +146,7 @@ public:
 	 */
 	INLINE void makeTxData(uint8_t com, uint8_t error) {
 		uint8_t byte = 0;
-		if ((com != 0) || (error = 0)) {
+		if ((com != 0) || (error == 0)) {
 			byte = (tmRx) ? 0x40 : 0x00;
 			byte |= (com & 0x3F);
 		} else {
