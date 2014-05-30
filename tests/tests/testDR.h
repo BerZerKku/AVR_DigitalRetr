@@ -20,11 +20,16 @@ class testDR : public CPPUNIT_NS::TestFixture, TDigitalRetrans {
     CPPUNIT_TEST(testClrError);
     CPPUNIT_TEST(testDecError);
     CPPUNIT_TEST(testGetCom);
-    CPPUNIT_TEST(testIsConnect);
-    CPPUNIT_TEST(testIsFault);
+    CPPUNIT_TEST(testCheckConnect);
+    CPPUNIT_TEST(testGetError);
     CPPUNIT_TEST(testIsWarning);
     CPPUNIT_TEST(testSetError);
-
+    CPPUNIT_TEST(testComToCode);
+    CPPUNIT_TEST(testSetRegime);
+    CPPUNIT_TEST(testCrtTxNewData);
+    CPPUNIT_TEST(testGetTxByte);
+    CPPUNIT_TEST(testResetProtocol);
+    
     CPPUNIT_TEST_SUITE_END();
 
 public:
@@ -35,15 +40,26 @@ public:
 
 private:
     void testCodeToCom();
+    void testComToCode();
+    
     void testCheckByteProtocol();
     void testCheckCommand();
     void testClrError();
     void testDecError();
     void testGetCom();
-    void testIsConnect();
-    void testIsFault();
+    void testCheckConnect();
+    void testGetError();
     void testIsWarning();
     void testSetError();
+    void testSetRegime();
+    void testCrtTxNewData();
+    void testGetTxByte();
+    void testResetProtocol();
+    
+    
+    // вывод сообщения об ошибке
+    char buf[256];
+    uint16_t pos;
 
 };
 

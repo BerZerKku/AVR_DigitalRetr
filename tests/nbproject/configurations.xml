@@ -4,8 +4,8 @@
     <logicalFolder name="HeaderFiles"
                    displayName="Header Files"
                    projectFiles="true">
-      <itemPath>../../MCU/AtmelAvrGcc/DigitalRetr/inc/bsp.h</itemPath>
-      <itemPath>../../MCU/AtmelAvrGcc/DigitalRetr/inc/dr.h</itemPath>
+      <itemPath>../inc/bsp.h</itemPath>
+      <itemPath>../inc/dr.h</itemPath>
     </logicalFolder>
     <logicalFolder name="ResourceFiles"
                    displayName="Resource Files"
@@ -64,15 +64,9 @@
           </linkerLibItems>
         </linkerTool>
       </compileType>
-      <item path="../../MCU/AtmelAvrGcc/DigitalRetr/inc/bsp.h"
-            ex="false"
-            tool="3"
-            flavor2="0">
+      <item path="../inc/bsp.h" ex="false" tool="3" flavor2="0">
       </item>
-      <item path="../../MCU/AtmelAvrGcc/DigitalRetr/inc/dr.h"
-            ex="false"
-            tool="3"
-            flavor2="0">
+      <item path="../inc/dr.h" ex="false" tool="3" flavor2="0">
       </item>
       <folder path="TestFiles">
         <ccTool>
@@ -161,15 +155,9 @@
           </linkerLibItems>
         </linkerTool>
       </compileType>
-      <item path="../../MCU/AtmelAvrGcc/DigitalRetr/inc/bsp.h"
-            ex="false"
-            tool="3"
-            flavor2="0">
+      <item path="../inc/bsp.h" ex="false" tool="3" flavor2="0">
       </item>
-      <item path="../../MCU/AtmelAvrGcc/DigitalRetr/inc/dr.h"
-            ex="false"
-            tool="3"
-            flavor2="0">
+      <item path="../inc/dr.h" ex="false" tool="3" flavor2="0">
       </item>
       <folder path="TestFiles/f1">
         <cTool>
