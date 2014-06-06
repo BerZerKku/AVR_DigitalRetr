@@ -5,7 +5,7 @@
  *      Author: Shcheblykin
  */
 
-
+#include <avr/io.h>
 
 #ifndef __DR_H_
 #define __DR_H_
@@ -69,14 +69,14 @@ protected:
     // переменные необходимые для приема
     uint8_t mCodeToCom[256]; 	///< Таблица код ЦПП -> команда.
     uint8_t error; 				///< Флаг ошибки ЦПП.
-    uint8_t comRx; 				///< Команда считанная по ЦПП.
+    volatile uint8_t comRx; 	///< Команда считанная по ЦПП.
     uint8_t oldCom; 			///< Команда в последней посылке.
     uint8_t cntCom; 			///< Кол-во принятых(переданных) посылок.
     uint8_t stepRx; 			///< Текущий шаг приема по протоколу.
 
     // переменные необходимые для передачи
     uint8_t mComToCode[MAX_NUM_COM + 1] [8];	///< Таблица команда -> код ЦПП.
-    uint8_t comTx; 				///< Команда передваемая по ЦПП.
+    volatile uint8_t comTx;		///< Команда передваемая по ЦПП.
     uint8_t stepTx; 			///< Текущий шаг передачи по протоколу.
     uint8_t cntPackg;			///< Счетчик переданных пакетов
 
@@ -334,11 +334,14 @@ public:
         error = 0;
     }
 
-    /**	Утсановка нового режима работы.
+    /**	Установка нового режима работы.
      *
      *  В случае ошибочного значения, посылка будет проигнорирована.
      *  В случае смены режима, работа протокола по приему и передаче будет
      *  сброшена в исходное состояние.
+     *
+     *	@see REG_DR
+     *  @param val Новый режим работы.
      */
 	INLINE void setRegime(uint8_t val) {
 		if (val != 0) {
@@ -357,6 +360,30 @@ public:
 		}
 	}
 
+	/** Запись команды для передачи по ЦПП.
+	 *
+	 *	В случае если еще не передана предыдущая команда или данная команда
+	 *	выходит за допустимый диапазон, т.е. больше /a MAX_NUM_COM, запись
+	 *	новой команды не произойдет.
+	 *
+	 *	@see MAX_NUM_COM
+	 *	@param val Номер команды для передачи по ЦПП.
+	 */
+	INLINE void setCom(uint8_t val) {
+		if (val != 0) {
+			switch (regime) {
+				case REG_RX_KEDR:
+					if ((comTx == 0) && (val <= MAX_NUM_COM)) {
+						comTx = val;
+					}
+					break;
+				case REG_OFF:
+				case REG_TX_KEDR:
+					break;
+			}
+		}
+	}
+
     /**	Возвращает номер принятой команды.
      *
      * 	Номер команды может быть от 0 до \a MAX_NUM_COM.
@@ -371,17 +398,17 @@ public:
      * 	@return Номер команды [0, MAX_NUM_COM].
      */
     INLINE uint8_t getCom() {
-    	uint8_t com = comRx;
-    	comRx = 0;
+    	uint8_t com = 0;
 
-        switch(regime) {
-        	case REG_OFF:
-        	case REG_TX_KEDR:
-        		com = 0;
-        		break;
-        	case REG_RX_KEDR:
-        		break;
-        }
+    	switch(regime) {
+    		case REG_TX_KEDR:
+    			com = comRx;
+    			comRx = 0;
+    			break;
+    		case REG_OFF:
+    		case REG_RX_KEDR:
+    			break;
+    	}
 
         return com;
     }
@@ -390,6 +417,9 @@ public:
      *
      * 	Проверяются прямые байты команд на наличие в них команды. В пакете
      * 	должно быть не более одной команды.
+     * 	Если команда обнаружена, ее номер будет записан в \a comRx.
+     *
+     * 	#see comRx
      */
     INLINE void checkCommand() {
         uint8_t newcom = 0;
@@ -423,10 +453,12 @@ public:
                 // увеличение счетчика повторно принятых посылок с этой командой
                 // при достижении CNT_COM формируется наличие команды
                 // дальше счетчик останавливается
-                if (cntCom <= CNT_COM) {
+                if (cntCom < CNT_COM) {
                     cntCom++;
                     if (cntCom == CNT_COM) {
-                        this->comRx = newcom;
+                    	if (newcom != 0) {
+							this->comRx = newcom;
+                    	}
                     }
                 }
             } else {
@@ -479,7 +511,6 @@ public:
             stepRx = MAX_STEP;
         } else {
             bufRx[stepRx] = byte;
-
             if (stepRx == 0) {
                 // первый синхробайт 0хAA
                 if (byte == 0xAA) {
@@ -530,7 +561,6 @@ public:
             setError();
         }
     }
-
 
     /**	Передача следующего байта по ЦПП.
      *

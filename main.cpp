@@ -110,21 +110,27 @@ __attribute__ ((OS_main)) int main(void) {
 	enableDrIO();
 	sei();
 
+	dr.setRegime(TDigitalRetrans::REG_RX_KEDR);
+
 	while(1) {
+		PINA |= (1 << LED_VD19);
+
 		// получена посылка с БСП, надо обработать и ответить
 		if (bsp.isNewData()) {
 
 			// установка режима работы
 			dr.setRegime(bsp.getRegime());
+			// запись команды на передачу
+			dr.setCom(bsp.getCom());
 
 			// подготовка данных для отправки в БСП
 			bsp.tmRx = (PINC & (1 << TM_RX));	//текущий уровень входа ТМ
 			bsp.makeTxData(dr.getCom(), dr.getError());
 
 			// передача двух байт данных в БСП
-			while(!(UCSR0A | (1 << UDRE0)));
+//			while(!(UCSR0A | (1 << UDRE0)));
 			UDR0 = bsp.bufTx[0];
-			while(!(UCSR0A | (1 << UDRE0)));
+//			while(!(UCSR0A | (1 << UDRE0)));
 			UDR0 = bsp.bufTx[1];
 
 			// установка значения на выходе ТМ
@@ -135,18 +141,22 @@ __attribute__ ((OS_main)) int main(void) {
 			}
 		}
 
-		// раз в 1мс уменьшение счетчика ошибок ЦПП и проверка приема ЦПП
-		// а также сброс сторожевого таймера
-		if (TIFR1 & (1 << OCF1A)) {
-			wdt_reset();
 
-			dr.decError();
-			dr.checkConnect();
-			TIFR1 |= (1 << OCF1A);
-		}
+
+		wdt_reset();
 	}
 }
 
+/**	Прерывание по свопадению таймера 1.
+ *
+ *	Уменьшается кол-во текщих ошибок.
+ *	Проверяется наличие полученной посылки по ЦПП.
+ */
+ISR(TIMER1_COMPA_vect) {
+	static uint8_t delay = 0;
+	dr.decError();
+	dr.checkConnect();
+}
 
 /** Прерывание по приему UART0.
  *
@@ -212,11 +222,12 @@ void low_level_init() {
 	// включено удвоение скорости работы
 	// 1 стоп бит, 8 бит данных, контроль четности отключен
 	// включено прерывание по приему
-	UBRR0 = 64;
-	UCSR0B = (1 << TXEN0) | (0 << UCSZ02);
-	UCSR0A = (1 << U2X0) | (1 << UCSZ01) | (1 << UCSZ00);
-	UCSR0C = (1 << UCSZ00) | (1 << UCSZ10);	//  по умолчанию
-	UCSR0B |=  (1 << RXCIE0);
+	UBRR0   = 64;
+	UCSR0A  = (1 << U2X0);
+	UCSR0B  = (1 << RXCIE0) | (0 << UCSZ02);
+	UCSR0C  = (1 << UCSZ00) | (1 << UCSZ01);	//  по умолчанию
+	UCSR0B  |= (1 << RXEN0) | (1 << TXEN0);
+
 
 	// UART1
 	// ЦПП
@@ -224,22 +235,24 @@ void low_level_init() {
 	// включено удвоение скорости работы
 	// 1 стоп бит, 8 бит данных, контроль четности отключен
 	// включены прерывания по приему и опустошению буфера
-	UBRR1 = 4;
-	UCSR1A = (1 << U2X0) | (1 << UCSZ01) | (1 << UCSZ00);
-	UCSR1B = (1 << RXEN0) | (1 << TXEN0) | (0 << UCSZ02);
-	UCSR1C = (1 << UCSZ00) | (1 << UCSZ10);	//  по умолчанию
-	UCSR1B = (1 << RXCIE1) | (UDRIE1);
+	UBRR1   = 4;
+	UCSR1A  = (1 << U2X1);
+	UCSR1B  = (1 << RXCIE1) | (1 << UDRIE1) | (0 << UCSZ12);
+	UCSR1C  = (1 << UCSZ10) | (1 << UCSZ11);	//  по умолчанию
+	UCSR1B  |= (1 << RXEN1) | (1 << TXEN1);
+
 
 
 	// Таймер 1
 	// режим CTC
-	// делитель N = 8, счет до OCR = 6249
+	// делитель N = 8, счет до OCR = 2499
 	// частота = F_CPU / (2 * N * (1 + OCR)
-	// при F_CPU = 20МГц получим 200Гц
+	// при F_CPU = 20МГц получим 500Гц
 	TCCR1A 	= (0 << WGM11) | (0 << WGM10);
 	TCCR1B 	= (0 << WGM13) | (1 << WGM12);
 	TCCR1C 	= 0;	// по умолчанию
 	TCNT1 	= 0;
-	OCR1A 	= 6249;
-	TCCR1B |= (1 << CS12) | (0 << CS11) | (0 << CS10); // запуск с делителем 8
+	OCR1A 	= 2499;
+	TIMSK1 	= (1 << OCIE1A);
+	TCCR1B |= (0 << CS12) | (1 << CS11) | (0 << CS10); // запуск с делителем 8
 }
