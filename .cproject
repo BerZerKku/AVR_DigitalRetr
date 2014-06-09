@@ -47,7 +47,7 @@
 								<option id="de.innot.avreclipse.cppcompiler.option.def.631886370" name="Define Syms (-D)" superClass="de.innot.avreclipse.cppcompiler.option.def" valueType="definedSymbols">
 									<listOptionValue builtIn="false" value="AVR"/>
 								</option>
-								<option id="de.innot.avreclipse.cppcompiler.option.incpath.1072128885" superClass="de.innot.avreclipse.cppcompiler.option.incpath" valueType="includePath">
+								<option id="de.innot.avreclipse.cppcompiler.option.incpath.1072128885" name="Include Paths (-I)" superClass="de.innot.avreclipse.cppcompiler.option.incpath" valueType="includePath">
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/inc}&quot;"/>
 								</option>
 								<inputType id="de.innot.avreclipse.cppcompiler.input.977190138" superClass="de.innot.avreclipse.cppcompiler.input"/>

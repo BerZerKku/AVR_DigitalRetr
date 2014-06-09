@@ -12,6 +12,13 @@
 
 #define INLINE __attribute__((always_inline))
 
+#ifdef AVR
+#include <avr/io.h>
+#define VOLATILE volatile
+#else
+#define VOLATILE
+#endif
+
 /// Класс работы с БСП.
 /**
  * 	От БСП ожидаеются два байта данных, причем второй равен инверсному первому,
@@ -32,12 +39,12 @@ protected:
 	/// Размер буфера передачи для цифрового переприема.
 	const static uint8_t BUF_MAX = 2;
 
-	bool newData;					///< флаг наличия новых данных
+	VOLATILE bool newData;			///< флаг наличия новых данных
 
 	uint8_t bufRx;					///< Буфер приема.
 
-	uint8_t com;					///< команда полученная с БСП
-	uint8_t regime;					///< режим работы ЦПП полученный с БСП
+	VOLATILE uint8_t com;			///< команда полученная с БСП
+	VOLATILE uint8_t regime;		///< режим работы ЦПП полученный с БСП
 
 public:
 	/**	Конструктор.
@@ -73,7 +80,7 @@ public:
 	 * 	При вызове функции значение режима сбрасывается в 0.
 	 * 	@return Режим работы ЦПП. 0 значит что нового значения нет.
 	 */
-	INLINE bool getRegime() {
+	INLINE uint8_t getRegime() {
 		uint8_t t = regime;
 		regime = 0;
 		return t;
@@ -91,7 +98,6 @@ public:
 	}
 
 
-
 	/**	Проверка принятого байта данных на соответствие протоколу.
 	 *
 	 *	Протокол связи с БСП:
@@ -107,7 +113,7 @@ public:
 	 *	@n b=1, cccccc=1 - останов ЦПП
 	 *	@n b=1, cccccc=2 - работа в качестве Приемника КЕДР
 	 *	@n b=1, cccccc=3 - рбаота в качестве Передатчика КЕДР
-	 *	- @b b2 - инверсный байт = ~b1
+	 *	- @b b2 - доп.байт = b1
 	 *
 	 *	@param byte Байт данных.
 	 *	@param status Статус источника данных, True - ошибка.
@@ -116,24 +122,25 @@ public:
 	INLINE void checkRxProtocol(uint8_t byte, bool status) {
 		if (status) {
 			 bufRx = 0xFF;
-		} else if ((byte ^ bufRx) == 0xFF) {
-			newData = true;
-			byte = bufRx;
-			bufRx = 0xFF;
-			// приняты достоверные данные
-			if (byte & 0x80) {
-				if (byte & 0x40) {
-					byte = byte & 0x3F;
-					if (byte <= 3) {
-						regime = 0x3F & byte;
+		} else {
+			if (byte == bufRx) {
+				newData = true;
+				byte = bufRx;
+				// приняты достоверные данные
+				if (byte & 0x80) {
+					if (byte & 0x40) {
+						byte = byte & 0x3F;
+						if (byte <= 3) {
+							regime = byte & 0x3F ;
+						}
 					}
+				} else {
+					tmTx = byte & 0x40;
+					com = byte & 0x3F;
 				}
 			} else {
-				tmTx = byte & 0x40;
-				com = byte & 0x3F;
+				bufRx = byte;
 			}
-		} else {
-			bufRx = byte;
 		}
 	}
 
@@ -155,7 +162,7 @@ public:
 	 *	@n cccccc=1 - ЦПП не запущен.
 	 *	@n cccccc=2 - ошибки в работе ЦПП для режима Приемник КЕДР.
 	 *	@n cccccc=3 - ошибки в работе ЦПП для режима Передатчик КЕДР.
-	 *	- @b b2 - инверсный байт = ~b1.
+	 *	- @b b2 - доп.байт = b1
 	 *
 	 *	@param com Команда на передачу, 0..32.
 	 *	@param error Статус источника данных, True - ошибка.
@@ -170,7 +177,7 @@ public:
 			byte |= (error & 0x3F);
 		}
 		bufTx[0] = byte;
-		bufTx[1] = ~byte;
+		bufTx[1] = byte;
 	}
 };
 

@@ -23,6 +23,7 @@ class testDR : public CPPUNIT_NS::TestFixture, TDigitalRetrans {
     CPPUNIT_TEST(testCheckConnect);
     CPPUNIT_TEST(testGetError);
     CPPUNIT_TEST(testIsWarning);
+    CPPUNIT_TEST(testIsError);
     CPPUNIT_TEST(testSetError);
     CPPUNIT_TEST(testComToCode);
     CPPUNIT_TEST(testSetRegime);
@@ -50,13 +51,13 @@ private:
     void testCheckConnect();
     void testGetError();
     void testIsWarning();
+    void testIsError();
     void testSetError();
     void testSetRegime();
     void testCrtTxNewData();
     void testGetTxByte();
     void testResetProtocol();
-    
-    
+   
     // вывод сообщения об ошибке
     char buf[256];
     uint16_t pos;

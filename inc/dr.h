@@ -5,14 +5,19 @@
  *      Author: Shcheblykin
  */
 
-#include <avr/io.h>
-
 #ifndef __DR_H_
 #define __DR_H_
 
 #include <stdint.h>
 
 #define INLINE __attribute__((always_inline))
+
+#ifdef AVR
+#include <avr/io.h>
+#define VOLATILE volatile
+#else
+#define VOLATILE
+#endif
 
  /// Класс работы с ЦПП.
  /** При обнаружении любой ошибки в принятых пакетах ЦПП к счетчику ошибок
@@ -43,7 +48,7 @@ public:
 		ERR_NO		= 0,
 		ERR_OFF		= 1,	///< Модуль ЦПП выключен
 		ERR_RX		= 2,	///< Предупреждение, об ошибках в связи ЦПП
-		ERR_TX		= 4		///< Ошибка в связи ЦПП
+		ERR_TX		= 3		///< Ошибка в связи ЦПП
 	};
 
 protected:
@@ -64,21 +69,21 @@ protected:
 
 
     bool connect; 	///< Флаг наличия связи по ЦПП.
-    REG_DR regime; 	///< Режим работы модуля ЦПП.
+    VOLATILE REG_DR regime; 	///< Режим работы модуля ЦПП.
 
     // переменные необходимые для приема
     uint8_t mCodeToCom[256]; 	///< Таблица код ЦПП -> команда.
     uint8_t error; 				///< Флаг ошибки ЦПП.
-    volatile uint8_t comRx; 	///< Команда считанная по ЦПП.
+    VOLATILE uint8_t comRx; 	///< Команда считанная по ЦПП.
     uint8_t oldCom; 			///< Команда в последней посылке.
-    uint8_t cntCom; 			///< Кол-во принятых(переданных) посылок.
+    uint8_t cntPckgRx; 			///< Кол-во принятых(переданных) посылок.
     uint8_t stepRx; 			///< Текущий шаг приема по протоколу.
 
     // переменные необходимые для передачи
     uint8_t mComToCode[MAX_NUM_COM + 1] [8];	///< Таблица команда -> код ЦПП.
-    volatile uint8_t comTx;		///< Команда передваемая по ЦПП.
+    VOLATILE uint8_t comTx;		///< Команда передваемая по ЦПП.
     uint8_t stepTx; 			///< Текущий шаг передачи по протоколу.
-    uint8_t cntPackg;			///< Счетчик переданных пакетов
+    uint8_t cntPackgTx;			///< Счетчик переданных пакетов
 
     /**	Заполнение таблицы сответствия кода ЦПП - номер команды.
      *
@@ -180,14 +185,14 @@ protected:
         
     	error = CNT_ERROR;
         comRx = 0;
-    	cntCom = 0;
+    	cntPckgRx = 0;
     	stepRx = 0;
         oldCom = 0;
         
 
     	comTx = 0;
     	stepTx = MAX_STEP;
-    	cntPackg = 0;
+    	cntPackgTx = 0;
     }
 
     uint8_t bufRx[MAX_STEP + 5]; ///< Буфер приемника.
@@ -256,12 +261,27 @@ public:
 
 
     /**	Проверка наличия ошибок в принятых пакетах ЦПП.
+     *
+     * 	Проверяет наличие хотя бы одной ошибки в работе ЦПП.
+     *
      * 	@retval True - есть ошибки.
      * 	@retval False - ошибок нет.
      */
     INLINE bool isWarning() const {
         return (error > 0);
     }
+
+
+    /** Проверка ошибки работы ЦПП.
+     *
+     * 	Проверяет наличие критического кол-ва ошибок в работе ЦПП.
+     *
+     * 	@retval True - ЦПП работает с ошибками, False - иначе.
+     */
+    INLINE bool isError() const {
+    	return (error >= ERRORS_TO_FAULT);
+    }
+
 
     /** Возвращает текущее значение неисправности ЦПП.
      *
@@ -285,12 +305,12 @@ public:
     			err = ERR_OFF;
     			break;
     		case REG_TX_KEDR:
-    			if (error >= ERRORS_TO_FAULT) {
+    			if (isError()) {
     				err = ERR_TX;
     			}
     			break;
     		case REG_RX_KEDR:
-    			if (error >= ERRORS_TO_FAULT) {
+    			if (isError()) {
     				err = ERR_RX;
     			}
     			break;
@@ -313,7 +333,7 @@ public:
         if (error <= (MAX_ERRORS - CNT_ERROR)) {
             error += CNT_ERROR;
         }
-        cntCom = 0;
+        cntPckgRx = 0;
         oldCom = 0;
     }
 
@@ -368,13 +388,16 @@ public:
 	 *
 	 *	@see MAX_NUM_COM
 	 *	@param val Номер команды для передачи по ЦПП.
+	 *	@return True - успешная запись команды, False - иначе.
 	 */
-	INLINE void setCom(uint8_t val) {
+	INLINE bool setCom(uint8_t val) {
+		bool state = false;
 		if (val != 0) {
 			switch (regime) {
 				case REG_RX_KEDR:
 					if ((comTx == 0) && (val <= MAX_NUM_COM)) {
 						comTx = val;
+						state = true;
 					}
 					break;
 				case REG_OFF:
@@ -382,15 +405,17 @@ public:
 					break;
 			}
 		}
+		return state;
 	}
 
     /**	Возвращает номер принятой команды.
      *
      * 	Номер команды может быть от 0 до \a MAX_NUM_COM.
-     * 	При вызове номер команды сбрасывается в 0.
      *
      * 	Если ЦПП выключен или работает в режиме Приемник КЕДР, то возвращается
      * 	всегда 0.
+     *
+     *	Если ЦПП работает с ошибкой, команда на приеме сбрасываетя в 0.
      *
      *	@see REG_DR
      *	@see MAX_NUM_COM
@@ -400,10 +425,13 @@ public:
     INLINE uint8_t getCom() {
     	uint8_t com = 0;
 
+    	if (isError()) {
+    		comRx = 0;
+    	}
+
     	switch(regime) {
     		case REG_TX_KEDR:
     			com = comRx;
-    			comRx = 0;
     			break;
     		case REG_OFF:
     		case REG_RX_KEDR:
@@ -417,7 +445,8 @@ public:
      *
      * 	Проверяются прямые байты команд на наличие в них команды. В пакете
      * 	должно быть не более одной команды.
-     * 	Если команда обнаружена, ее номер будет записан в \a comRx.
+     * 	Если команда обнаружена (в том числе и нулевая), ее номер будет записан
+     * 	в \a comRx.
      *
      * 	#see comRx
      */
@@ -442,30 +471,25 @@ public:
             }
         }
 
-        if (newcom > 32) {
-            // ошибка данных в принятом пакете ЦПП
+        // проверка номера команды на максимум
+        if (newcom > MAX_NUM_COM) {
             setError();
         }
 
+        // запись принятой команды, в случае если отсутствуют ошибки в работе
+        // ЦПП и кол-во принятых пакетов с этой командой не менее CNT_COM.
         if (!isWarning()) {
-            // принята команда при отсутствии проблем со связью
-            if (oldCom == newcom) {
-                // увеличение счетчика повторно принятых посылок с этой командой
-                // при достижении CNT_COM формируется наличие команды
-                // дальше счетчик останавливается
-                if (cntCom < CNT_COM) {
-                    cntCom++;
-                    if (cntCom == CNT_COM) {
-                    	if (newcom != 0) {
-							this->comRx = newcom;
-                    	}
-                    }
-                }
-            } else {
-                // принята новая команда
-                oldCom = newcom;
-                cntCom = 1;
-            }
+        	if (oldCom == newcom) {
+        		if (cntPckgRx < CNT_COM) {
+        			cntPckgRx++;
+					if (cntPckgRx >= CNT_COM) {
+						comRx = newcom;
+					}
+        		}
+        	} else {
+        		oldCom = newcom;
+        		cntPckgRx = 1;
+        	}
         }
     }
 
@@ -574,12 +598,12 @@ public:
      */
     INLINE uint8_t getTxByte() {
     	if (stepTx >= MAX_STEP) {	
-			if (cntPackg == 0) {
+			if (cntPackgTx == 0) {
 				// формирование новой посылки на передачу
-				cntPackg = crtTxNewData();
+				cntPackgTx = crtTxNewData();
 			} 
             stepTx = 0;
-            cntPackg--;
+            cntPackgTx--;
     	}
 
     	return bufTx[stepTx++];

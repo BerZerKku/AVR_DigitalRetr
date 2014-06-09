@@ -54,15 +54,15 @@ void testBsp::testCheckRxProtocol()
     };
     
     data s1[] = {
-        {0x01, 0x01, 0x00, 0x00,  true, false}, // 0
-        {0xFF, 0xFF, 0x00, 0x00,  true, false}, // 1
-        {0xC1, 0xC1, 0x00, 0x00,  true, false}, // 2 байт режима
-        {0x3E, 0xFF, 0x00, 0x01,  true,  true}, // 3 инверсный байт
-        {0x77, 0x77, 0x00, 0x00,  true, false}, // 4 
-        {0x01, 0x01, 0x00, 0x00,  true, false}, // 5 байт команды + тм = лог.0
-        {0xFE, 0xFF, 0x01, 0x00, false,  true}, // 6 инверсный байт
-        {0x60, 0x60, 0x01, 0x00, false, false}, // 7 байт команды + тм = лог.1
-        {0x9F, 0xFF, 0x20, 0x00,  true,  true}  // 8 инверсный байт
+        {(uint8_t)  0x01, 0x01, 0x00, 0x00,  true, false}, // 0
+        {(uint8_t)  0xFF, 0xFF, 0x00, 0x00,  true, false}, // 1
+        {(uint8_t)  0xC1, 0xC1, 0x00, 0x00,  true, false}, // 2 байт режима
+        {(uint8_t)  0xC1, 0xC1, 0x00, 0x01,  true,  true}, // 3 доп. байт
+        {(uint8_t)  0x77, 0x77, 0x00, 0x00,  true, false}, // 4 
+        {(uint8_t)  0x01, 0x01, 0x00, 0x00,  true, false}, // 5 байт команды + тм = лог.0
+        {(uint8_t)  0x01, 0x01, 0x01, 0x00, false,  true}, // 6 доп. байт
+        {(uint8_t)  0x60, 0x60, 0x01, 0x00, false, false}, // 7 байт команды + тм = лог.1
+        {(uint8_t)  0x60, 0x60, 0x20, 0x00,  true,  true}  // 8 доп. байт
         
     };
     
@@ -103,8 +103,8 @@ void testBsp::testGetCom()
 
 void testBsp::testGetRegime()
 {
-    regime = 1;
-    CPPUNIT_ASSERT_MESSAGE("1", getRegime() == 1);
+    regime = 2; 
+    CPPUNIT_ASSERT_MESSAGE("1", getRegime() == 2);
     CPPUNIT_ASSERT_MESSAGE("2", getRegime() == 0);
     CPPUNIT_ASSERT_MESSAGE("3", getRegime() == 0);
 }
@@ -128,12 +128,12 @@ void testBsp::testMakeTxData()
     };
     
     data s[] = {
-        {1,  0x00, false, 0x01, (unsigned) ~0x01}, // 0 команда + ТМ_RX = лог.'0'
-        {1,  0x01, true,  0x41, (unsigned) ~0x41}, // 1 (команда + ошибка)  + ТМ_RX = лог.'1' - доминирует команда
-        {0,  0x01, true,  0xC1, (unsigned) ~0xC1}, // 2 ошибка  + ТМ_RX = лог.'1'    
-        {13, 0x00, true,  0x4D, (unsigned) ~0x4D}, // 3 команда + ТМ_RX = лог.'1'
-        {32, 0x02, false, 0x20, (unsigned) ~0x20}, // 4 (команда + ошибка)  + TM_RX = лог.'0' - доминирует команда
-        {0,  0x00, false, 0x00, (unsigned) ~0x00}  // 5 нет ком.+ TM_RX = лог.'0'
+        {1,  0x00, false, 0x01, (uint8_t) 0x01}, // 0 команда + ТМ_RX = лог.'0'
+        {1,  0x01, true,  0x41, (uint8_t) 0x41}, // 1 (команда + ошибка)  + ТМ_RX = лог.'1' - доминирует команда
+        {0,  0x01, true,  0xC1, (uint8_t) 0xC1}, // 2 ошибка  + ТМ_RX = лог.'1'    
+        {13, 0x00, true,  0x4D, (uint8_t) 0x4D}, // 3 команда + ТМ_RX = лог.'1'
+        {32, 0x02, false, 0x20, (uint8_t) 0x20}, // 4 (команда + ошибка)  + TM_RX = лог.'0' - доминирует команда
+        {0,  0x00, false, 0x00, (uint8_t) 0x00}  // 5 нет ком.+ TM_RX = лог.'0'
     };
     
     for(uint8_t i = 0; i < (sizeof(s) / sizeof(s[0])); i++) {
@@ -149,7 +149,7 @@ void testBsp::testMakeTxData()
         
         CPPUNIT_ASSERT_EQUAL_MESSAGE(buf, s[i].bufTx0, bufTx[0]);
         CPPUNIT_ASSERT_EQUAL_MESSAGE(buf, s[i].bufTx1, bufTx[1]);
-    }
+    } 
     
 }
 

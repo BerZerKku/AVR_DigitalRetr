@@ -173,16 +173,16 @@ void testDR::testCheckByteProtocol()
     };
 
     data s1[] = {
-        data{0x01, 0, false},
-        data{0x54, 0, false},
-        data{0x58, 0, false},
-        data{0xAA, 1, false},
-        data{0x49, 0, false},
-        data{0xAA, 1, false},
-        data{0x00, 0, false},
-        data{0xAA, 1, false},
-        data{0xAA, 2, true},
-        data{0x11, 3, false}
+        {0x01, 0, false},
+        {0x54, 0, false},
+        {0x58, 0, false},
+        {0xAA, 1, false},
+        {0x49, 0, false},
+        {0xAA, 1, false},
+        {0x00, 0, false},
+        {0xAA, 1, false},
+        {0xAA, 2, true},
+        {0x11, 3, false}
     };
     
     clrError();
@@ -328,10 +328,15 @@ void testDR::testCheckCommand()
 
         clrError();
         checkCommand();
-
-        CPPUNIT_ASSERT_EQUAL(s1[i].com_in, oldCom);
-        CPPUNIT_ASSERT_EQUAL(s1[i].com_out, comRx);
-        CPPUNIT_ASSERT(error == 0);
+        
+        pos  = 0;
+        pos  = sprintf(&buf[pos], "Test=1, Step=%u", i);
+        pos += sprintf(&buf[pos], "\t s.com_in=0x%.2X \n", s1[i].com_in);
+        pos += sprintf(&buf[pos], "\t s.com_out=0x%.2X, com=0x%.2X \n", s1[i].com_out, comRx);
+        
+        CPPUNIT_ASSERT_EQUAL_MESSAGE(buf, s1[i].com_in, oldCom);
+        CPPUNIT_ASSERT_EQUAL_MESSAGE(buf, s1[i].com_out, comRx);
+        CPPUNIT_ASSERT_MESSAGE(buf, error == 0);
     }
 
     // проверка определения команды в случае наличия нескольких команд
@@ -355,31 +360,36 @@ void testDR::testCheckCommand()
 
         clrError();
         checkCommand();
-
-        CPPUNIT_ASSERT_EQUAL(s2[i].com_in, oldCom);
-        CPPUNIT_ASSERT_EQUAL(s2[i].com_out, comRx);
-        CPPUNIT_ASSERT(error == CNT_ERROR);
+        
+        pos  = 0;
+        pos  = sprintf(&buf[pos], "Test=2, Step=%u", i);
+        pos += sprintf(&buf[pos], "\t s.com_in=0x%.2X \n", s2[i].com_in);
+        pos += sprintf(&buf[pos], "\t s.com_out=0x%.2X, com=0x%.2X \n", s2[i].com_out, comRx);
+        
+        CPPUNIT_ASSERT_EQUAL_MESSAGE(buf, s2[i].com_in, oldCom);
+        CPPUNIT_ASSERT_EQUAL_MESSAGE(buf, s2[i].com_out, comRx);
+        CPPUNIT_ASSERT_MESSAGE(buf, error == CNT_ERROR);
     }
 
     // проверка счетчика команды
     data s3[] = {
-        {0x00000000,  0,  0, 1},
-        {0x00000001,  1,  0, 1},
-        {0x00000002,  2,  0, 1},
-        {0x00004000, 15,  0, 1},
-        {0x00004000, 15,  0, 2},
-        {0x00000001,  1,  0, 1},
-        {0x08000000, 28,  0, 1},
-        {0x08000000, 28,  0, 2},
-        {0x08000000, 28, 28, 3},
-        {0x00000001,  1, 28, 1},
-        {0x00000003,  0, 28, 0},
-        {0x08000000,  0, 28, 0},
-        {0x08000000,  0, 28, 0}
+        {0x00000000,  0,  0, 1},    // 0
+        {0x00000001,  1,  0, 1},    // 1
+        {0x00000002,  2,  0, 1},    // 2
+        {0x00004000, 15,  0, 1},    // 3
+        {0x00004000, 15,  0, 2},    // 4
+        {0x00000001,  1,  0, 1},    // 5
+        {0x08000000, 28,  0, 1},    // 6
+        {0x08000000, 28,  0, 2},    // 7
+        {0x08000000, 28, 28, 3},    // 8
+        {0x00000001,  1, 28, 1},    // 9
+        {0x00000003,  0, 28, 0},    // 10
+        {0x08000000,  0, 28, 0},    // 11
+        {0x08000000,  0, 28, 0}     // 12
     };
 
     comRx = 0;
-    oldCom = 0;
+    oldCom = 0; 
 
     clrError();
     for(uint8_t i = 0; i < ((sizeof(s3) / sizeof(s3[0]))); i++) {
@@ -388,18 +398,20 @@ void testDR::testCheckCommand()
         bufRx[6] = static_cast<uint8_t> ((s3[i].in & 0x00FF0000) >> 16);
         bufRx[8] = static_cast<uint8_t> ((s3[i].in & 0xFF000000) >> 24);
 
-
         checkCommand();
+        
+        pos  = 0;
+        pos  = sprintf(&buf[pos], "Test=3, Step=%u", i);
+        pos += sprintf(&buf[pos], "\t s.com_in=0x%.2X \n", s3[i].com_in);
+        pos += sprintf(&buf[pos], "\t s.com_out=0x%.2X, com=0x%.2X \n", s3[i].com_out, comRx);
 
 //        printf("com = %u, oldCom = %u", s3[i].com_in, oldCom);
         // проверка правильности определения номера команды
-        CPPUNIT_ASSERT_EQUAL_MESSAGE("1",s3[i].com_in, oldCom);
+        CPPUNIT_ASSERT_EQUAL_MESSAGE(buf,s3[i].com_in, oldCom);
         // проверка подсчета кол-ва последовательно принятых одинаковых команд
-        CPPUNIT_ASSERT_EQUAL_MESSAGE("2",s3[i].cnt, cntCom);
+        CPPUNIT_ASSERT_EQUAL_MESSAGE(buf,s3[i].cnt, cntPckgRx);
         // проверка утсановки номера принятой команды по ЦПП
-        CPPUNIT_ASSERT_EQUAL_MESSAGE("3",s3[i].com_out, comRx);
-
-
+        CPPUNIT_ASSERT_EQUAL_MESSAGE(buf,s3[i].com_out, comRx);
     }
 }
 
@@ -434,17 +446,18 @@ void testDR::testGetCom()
         REG_DR regime;
         uint8_t inCom;
         uint8_t  outCom;
+        
     };
     
     data s1[] = {
-        data{REG_OFF,       0,  0},     // 0
-        data{REG_OFF,       16, 0},     // 1
-        data{REG_RX_KEDR,   0,  0},     // 2
-        data{REG_RX_KEDR,   1,  1},     // 3
-        data{REG_RX_KEDR,   32, 32},    // 4
-        data{REG_TX_KEDR,   0,  0},     // 8
-        data{REG_TX_KEDR,   15, 0},     // 9
-        data{REG_TX_KEDR,   31, 0},     // 10
+        {REG_OFF,       0,  0},     // 0
+        {REG_OFF,       16, 0},     // 1
+        {REG_TX_KEDR,   0,  0},     // 2
+        {REG_TX_KEDR,   1,  1},     // 3
+        {REG_TX_KEDR,   32, 32},    // 4
+        {REG_RX_KEDR,   0,  0},     // 8
+        {REG_RX_KEDR,   15, 0},     // 9
+        {REG_RX_KEDR,   31, 0},     // 10
     };
 
     for(uint8_t i = 0; i < (sizeof(s1) / sizeof(s1[0])); i++) {
@@ -454,18 +467,27 @@ void testDR::testGetCom()
         uint8_t val = getCom();
 
         pos  = 0;
-        pos  = sprintf(&buf[pos], "Test1=1, Step=%u", i);
+        pos  = sprintf(&buf[pos], "Test=1, Step=%u", i);
         pos += sprintf(&buf[pos], "\t s.com=0x%.2X, com=0x%.2X \n", s1[i].outCom, val);
 
         CPPUNIT_ASSERT_EQUAL_MESSAGE(buf, s1[i].outCom, val);
     }
 
-    // проверка на обнуление команды, после того как ее забрали
-    setRegime(REG_RX_KEDR);  
+    // проверка на то, что команда не обнуляется после того как ее забрали
+    setRegime(REG_TX_KEDR);  
     comRx = 16;
     CPPUNIT_ASSERT_MESSAGE("Test=2.1", getCom() == 16);
-    CPPUNIT_ASSERT_MESSAGE("Test=2.2", getCom() == 0);
-    CPPUNIT_ASSERT_MESSAGE("Test=2.3", getCom() == 0);
+    CPPUNIT_ASSERT_MESSAGE("Test=2.2", getCom() == 16);
+    CPPUNIT_ASSERT_MESSAGE("Test=2.3", getCom() == 16);
+    
+    // проверка на то, что команда обнуляется при ошибке в работе ЦПП
+    setRegime(REG_TX_KEDR);
+    comRx = 13;
+    CPPUNIT_ASSERT_MESSAGE("Test=3.1", getCom() == 13);
+    error = CNT_ERROR;
+    CPPUNIT_ASSERT_MESSAGE("Test=3.2", getCom() == 13);
+    error = ERRORS_TO_FAULT;
+    CPPUNIT_ASSERT_MESSAGE("Test=3.3", getCom() == 0);
 }
 
 void testDR::testCheckConnect()
@@ -528,6 +550,17 @@ void testDR::testIsWarning()
     for(uint8_t i = 0; i < MAX_ERRORS; i++) {
         error = i;
         CPPUNIT_ASSERT(isWarning() == (i != 0));
+    }
+}
+
+void testDR::testIsError()
+{
+    // проверка наличия ошибки, при error >= ERROR_TO_FAULT
+    for(uint8_t i = 0; i < MAX_ERRORS; i++) {
+        error = i;
+        pos = 0;
+        pos += sprintf(&buf[pos], "error=%d", i);
+        CPPUNIT_ASSERT_MESSAGE(buf, isError() == (i >= ERRORS_TO_FAULT));
     }
 }
 
@@ -687,7 +720,7 @@ void testDR::testGetTxByte()
 
     setRegime(REG_RX_KEDR);
     stepTx = MAX_STEP;
-    cntPackg = 0;
+    cntPackgTx = 0;
 
     for(uint8_t i = 0; i < (sizeof(s1) / sizeof(s1[0])); i++) {
         comTx = s1[i].com;
@@ -707,7 +740,7 @@ void testDR::testGetTxByte()
 void testDR::testResetProtocol()
 {
     comRx = 1;
-    cntCom = 2;
+    cntPckgRx = 2;
     stepRx = 3;
     oldCom = 4;
     connect = true;
@@ -715,12 +748,12 @@ void testDR::testResetProtocol()
     
     comTx = 5;
     stepTx = 6;
-    cntPackg = 8;
+    cntPackgTx = 8;
     
     resetProtocol();
 
     CPPUNIT_ASSERT_MESSAGE(buf, comRx == 0);
-    CPPUNIT_ASSERT_MESSAGE(buf, cntCom == 0);
+    CPPUNIT_ASSERT_MESSAGE(buf, cntPckgRx == 0);
     CPPUNIT_ASSERT_MESSAGE(buf, stepRx == 0);
     CPPUNIT_ASSERT_MESSAGE(buf, oldCom == 0);
     CPPUNIT_ASSERT_MESSAGE(buf, connect == false);
@@ -728,6 +761,6 @@ void testDR::testResetProtocol()
     
     CPPUNIT_ASSERT_MESSAGE(buf, comTx == 0);
     CPPUNIT_ASSERT_MESSAGE(buf, stepTx == MAX_STEP);
-    CPPUNIT_ASSERT_MESSAGE(buf, cntPackg == 0);
+    CPPUNIT_ASSERT_MESSAGE(buf, cntPackgTx == 0);
     
 }
