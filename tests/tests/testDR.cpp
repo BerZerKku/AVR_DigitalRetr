@@ -601,6 +601,7 @@ void testDR::testSetRegime()
 
 void testDR::testCrtTxNewData()
 {
+    uint8_t numpckg = 0;
     uint8_t nullCom[16] = { 0xAA, 0xAA,
                             0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF,
                             0x00, 0x00, 0x00, 0x00, 0x00,
@@ -613,10 +614,10 @@ void testDR::testCrtTxNewData()
     for(uint8_t i = 0; i <= MAX_NUM_COM; i++) {
 
         pos  = 0;
-        pos += sprintf(&buf[pos], "Test=1, com=%u.", i);
+        pos += sprintf(&buf[pos], "Test=1, com=%u.\n", i);
 
         comTx = i;
-        crtTxNewData();
+        numpckg = crtTxNewData();
 
         CPPUNIT_ASSERT_MESSAGE(buf, bufTx[0] == nullCom[0]);
         CPPUNIT_ASSERT_MESSAGE(buf, bufTx[1] == nullCom[1]);
@@ -650,28 +651,39 @@ void testDR::testCrtTxNewData()
 
         // проверка сброса команды, после формирования пакета для нее
         CPPUNIT_ASSERT_MESSAGE(buf, comTx == 0);
+        
+        // проверка на правильность формирования кол-ва передаваемых пакетов
+        pos += sprintf(&buf[pos], "\t numpckg=%d", numpckg);
+        CPPUNIT_ASSERT_MESSAGE(buf, numpckg == (((i > 0) && (i <= MAX_NUM_COM)) ? 10 : 1));
     }
 
     // Проверка правильности установки команды в режиме REG_OFF
     comTx = 1;
     setRegime(REG_OFF);
-    crtTxNewData();
+    numpckg = crtTxNewData();
     for(uint8_t i = 0; i < MAX_STEP; i++) {
         pos  = 0;
         pos += sprintf(&buf[pos], "Test=2, step=%u.", i);
 //        pos += sprintf(&buf[pos], "buf=%.2X ~byte=%.2X", bufTx[i], nullCom[i]);
         CPPUNIT_ASSERT_MESSAGE(buf, bufTx[i] == nullCom[i]);
+        
+        // проверка на правильность формирования кол-ва передаваемых пакетов
+        CPPUNIT_ASSERT_MESSAGE(buf, numpckg == 1);
+        
     }
 
      // Проверка правильности установки команды в режиме REG_TX_KEDR
     comTx = 3;
     setRegime(REG_TX_KEDR);
-    crtTxNewData();
+    numpckg = crtTxNewData();
     for(uint8_t i = 0; i < MAX_STEP; i++) {
         pos  = 0;
         pos += sprintf(&buf[pos], "Test=2, step=%u.", i);
 //        pos += sprintf(&buf[pos], "buf=%.2X ~byte=%.2X", bufTx[i], nullCom[i]);
         CPPUNIT_ASSERT_MESSAGE(buf, bufTx[i] == nullCom[i]);
+        
+        // проверка на правильность формирования кол-ва передаваемых пакетов
+        CPPUNIT_ASSERT_MESSAGE(buf, numpckg == 1);
     }
 }
 

@@ -40,9 +40,7 @@ protected:
 	const static uint8_t BUF_MAX = 2;
 
 	VOLATILE bool newData;			///< флаг наличия новых данных
-
 	uint8_t bufRx;					///< Буфер приема.
-
 	VOLATILE uint8_t com;			///< команда полученная с БСП
 	VOLATILE uint8_t regime;		///< режим работы ЦПП полученный с БСП
 
@@ -69,9 +67,12 @@ public:
 	 * 	При вызове функции флаг сбрасывается.
 	 *	@return True если есть новые данные, иначе False.
 	 */
-	INLINE bool isNewData() {
-		bool t = newData;
-		newData = false;
+	bool isNewData() {
+		bool t = false;
+		if (newData) {
+			t = newData;
+			newData = false;
+		}
 		return t;
 	}
 
@@ -80,9 +81,12 @@ public:
 	 * 	При вызове функции значение режима сбрасывается в 0.
 	 * 	@return Режим работы ЦПП. 0 значит что нового значения нет.
 	 */
-	INLINE uint8_t getRegime() {
-		uint8_t t = regime;
-		regime = 0;
+	uint8_t getRegime() {
+		uint8_t t = 0;
+		if (regime) {
+			t = regime;
+			regime = 0;
+		}
 		return t;
 	}
 
@@ -91,17 +95,19 @@ public:
 	 * 	При вызове функции значение команды сбрасывается в 0.
 	 * 	@return Режим работы ЦПП. 0 значит что нового значения нет.
 	 */
-	INLINE uint8_t getCom() {
-		uint8_t t = com;
-		com = 0;
+	uint8_t getCom() {
+		uint8_t t = 0;
+		if (com) {
+			t = com;
+			com = 0;
+		}
 		return t;
 	}
-
 
 	/**	Проверка принятого байта данных на соответствие протоколу.
 	 *
 	 *	Протокол связи с БСП:
-	 *	Ищется два байта подряд, для которых первый равен инверсному второму.
+	 *	Ищется два одинаковых байта подряд.
 	 *	В случае ошибки источника данных \a status, содержимое буфера
 	 *	устанавливается в 0xFF.
 	 *
@@ -125,7 +131,7 @@ public:
 		} else {
 			if (byte == bufRx) {
 				newData = true;
-				byte = bufRx;
+				bufRx = 0xFF;
 				// приняты достоверные данные
 				if (byte & 0x80) {
 					if (byte & 0x40) {

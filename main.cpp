@@ -76,8 +76,6 @@ static inline void disableDrIO();
 
 //---ПЕРЕМЕННЫЕ-----------------------------------------------------------------
 
-volatile uint8_t cnt = 0;
-
 TDigitalRetrans dr;	///< Класс работы с ЦПП
 TBsp bsp;			///< Класс работы с БСП.
 
@@ -90,6 +88,7 @@ TBsp bsp;			///< Класс работы с БСП.
 void enableDrIO() {
 	PORTD |= (1 << DR_EN);
 }
+
 
 /** Запрет работы преобразователя UART <-> RS422.
  *
@@ -112,10 +111,10 @@ __attribute__ ((OS_main)) int main(void) {
 	sei();
 
 	while(1) {
-		PINA |= (1 << LED_VD19);
-
 		// получена посылка с БСП, надо обработать и ответить
 		if (bsp.isNewData()) {
+			PORTA |= (1 << PA3);
+
 			// установка режима работы
 			dr.setRegime(bsp.getRegime());
 			// запись команды на передачу
@@ -126,7 +125,9 @@ __attribute__ ((OS_main)) int main(void) {
 			bsp.makeTxData(dr.getCom(), dr.getError());
 
 			// передача двух байт данных в БСП
+			while(!(UCSR0A & (1 << UDRE0)));
 			UDR0 = bsp.bufTx[0];
+			while(!(UCSR0A & (1 << UDRE0)));
 			UDR0 = bsp.bufTx[1];
 
 			// установка значения на выходе ТМ
@@ -135,11 +136,14 @@ __attribute__ ((OS_main)) int main(void) {
 			} else {
 				PORTC &= ~(1 << TM_TX);
 			}
+			PORTA &= ~(1 << PA3);
 		}
 
+		PINA |= (1 << LED_VD19);
 		wdt_reset();
 	}
 }
+
 
 /**	Прерывание по свопадению таймера 1.
  *
@@ -149,8 +153,8 @@ __attribute__ ((OS_main)) int main(void) {
 ISR(TIMER1_COMPA_vect) {
 	dr.decError();
 	dr.checkConnect();
-	cnt++;
 }
+
 
 /** Прерывание по приему UART0.
  *
@@ -166,6 +170,8 @@ ISR(USART0_RX_vect) {
 
 
 /** Прерывание по приему UART1.
+ *
+ * 	Прием байт данных по ЦПП.
  */
 ISR(USART1_RX_vect) {
 	uint8_t status = UCSR1A;	// регистр состояния
@@ -178,7 +184,7 @@ ISR(USART1_RX_vect) {
 
 /** Прерывание по опустошению буфера передачи UART1.
  *
- * 	В случае отсутствия байта на передачу
+ * 	Передача байт данных по ЦПП.
  */
 ISR(USART1_UDRE_vect) {
 	UDR1 = dr.getTxByte();
