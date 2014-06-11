@@ -107,24 +107,31 @@ void disableDrIO() {
  */
 __attribute__ ((OS_main)) int main(void) {
 
+	uint8_t com = 0;
+	uint8_t error = 0;
+	uint8_t regime = 0;
+
 	enableDrIO();
 	sei();
 
 	while(1) {
 		// получена посылка с БСП, надо обработать и ответить
 		if (bsp.isNewData()) {
-			PORTA |= (1 << PA3);
-
+			PORTA |= (1 << TP4);
 			// установка режима работы
-			dr.setRegime(bsp.getRegime());
+			regime = bsp.getRegime();
+			dr.setRegime(regime);
 			// запись команды на передачу
-			dr.setCom(bsp.getCom());
+			com = bsp.getCom();
+			dr.setCom(com);
 
 			// подготовка данных для отправки в БСП
 			bsp.tmRx = (PINC & (1 << TM_RX));	//текущий уровень входа ТМ
-			bsp.makeTxData(dr.getCom(), dr.getError());
+			com = dr.getCom();
+			error = dr.getError();
+			bsp.makeTxData(com, error);
 
-			// передача двух байт данных в БСП
+			// передача двух байт данных в БСП, если сдвиговый регистр пуст
 			while(!(UCSR0A & (1 << UDRE0)));
 			UDR0 = bsp.bufTx[0];
 			while(!(UCSR0A & (1 << UDRE0)));
@@ -136,7 +143,7 @@ __attribute__ ((OS_main)) int main(void) {
 			} else {
 				PORTC &= ~(1 << TM_TX);
 			}
-			PORTA &= ~(1 << PA3);
+			PORTA &= ~(1 << TP4);
 		}
 
 		PINA |= (1 << LED_VD19);

@@ -68,12 +68,12 @@ protected:
     const static uint8_t MAX_NUM_COM = 32;
 
 
-    bool connect; 	///< Флаг наличия связи по ЦПП.
-    VOLATILE REG_DR regime; 	///< Режим работы модуля ЦПП.
+    VOLATILE bool connect; 		///< Флаг наличия связи по ЦПП.
+    VOLATILE REG_DR regime;		///< Режим работы модуля ЦПП.
 
     // переменные необходимые для приема
     uint8_t mCodeToCom[256]; 	///< Таблица код ЦПП -> команда.
-    uint8_t error; 				///< Флаг ошибки ЦПП.
+    VOLATILE uint8_t error;		///< Флаг ошибки ЦПП.
     VOLATILE uint8_t comRx; 	///< Команда считанная по ЦПП.
     uint8_t oldCom; 			///< Команда в последней посылке.
     uint8_t cntPckgRx; 			///< Кол-во принятых(переданных) посылок.
