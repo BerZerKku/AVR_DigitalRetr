@@ -14,6 +14,9 @@
 class testBsp : public CPPUNIT_NS::TestFixture, TBsp {
     CPPUNIT_TEST_SUITE(testBsp);
 
+    CPPUNIT_TEST(testIncError);
+    CPPUNIT_TEST(testCheckConnect);
+    CPPUNIT_TEST(testIsError);
     CPPUNIT_TEST(testCheckRxProtocol);
     CPPUNIT_TEST(testGetCom);
     CPPUNIT_TEST(testGetRegime);
@@ -29,6 +32,9 @@ public:
     void tearDown();
 
 private:
+    void testIncError();
+    void testCheckConnect();
+    void testIsError();
     void testCheckRxProtocol();
     void testGetCom();
     void testGetRegime();

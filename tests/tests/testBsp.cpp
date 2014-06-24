@@ -32,10 +32,54 @@ void testBsp::setUp()
     newData = false;
     com = 0;
     regime = 0;
+    
+    error = 0;
 }
 
 void testBsp::tearDown()
 {
+}
+
+void testBsp::testIncError()
+{
+    for(uint8_t i = 0; i <= MAX_ERRORS*2; i++) {
+        incError();
+        if (i < MAX_ERRORS) {
+            // проверка увеличения счетчика до достижения макс.значения
+            CPPUNIT_ASSERT(error == (i + 1));
+        } else {
+            // проверка остуствия увеличения счетчика выше макс.занчения
+            CPPUNIT_ASSERT(error = MAX_ERRORS);
+        }
+    }
+}
+
+void testBsp::testCheckConnect()
+{
+    for(uint8_t i = 0; i <= MAX_ERRORS*2; i++) {
+        checkConnect();
+        if (i < MAX_ERRORS) {
+            // проверка увеличения счетчика до достижения макс.значения
+            CPPUNIT_ASSERT(error == (i + 1));
+        } else {
+            // проверка остуствия увеличения счетчика выше макс.занчения
+            CPPUNIT_ASSERT(error = MAX_ERRORS);
+        }
+    }
+}
+
+void testBsp::testIsError() 
+{
+    for(uint8_t i = 0; i <= MAX_ERRORS*2; i++) {       
+        if (i < MAX_ERRORS) {
+            // проверка отсутствия ошибки, если кол-во ошибок меньше порога
+            CPPUNIT_ASSERT(isError() == false);
+        } else {
+            // проверка наличия ошибки, если кол-во ошибок больше порога
+            CPPUNIT_ASSERT(isError() == true);
+        }
+        incError();
+    }
 }
 
 void testBsp::testCheckRxProtocol()
@@ -49,20 +93,21 @@ void testBsp::testCheckRxProtocol()
         uint8_t bufRx;
         uint8_t com;
         uint8_t regime;
+        uint8_t error;
         bool tmTx;
         bool newData;
     };
     
     data s1[] = {
-        {(uint8_t)  0x01, 0x01, 0x00, 0x00,  true, false}, // 0
-        {(uint8_t)  0xFF, 0xFF, 0x00, 0x00,  true, false}, // 1
-        {(uint8_t)  0xC1, 0xC1, 0x00, 0x00,  true, false}, // 2 байт режима
-        {(uint8_t)  0xC1, 0xC1, 0x00, 0x01,  true,  true}, // 3 доп. байт
-        {(uint8_t)  0x77, 0x77, 0x00, 0x00,  true, false}, // 4 
-        {(uint8_t)  0x01, 0x01, 0x00, 0x00,  true, false}, // 5 байт команды + тм = лог.0
-        {(uint8_t)  0x01, 0x01, 0x01, 0x00, false,  true}, // 6 доп. байт
-        {(uint8_t)  0x60, 0x60, 0x01, 0x00, false, false}, // 7 байт команды + тм = лог.1
-        {(uint8_t)  0x60, 0x60, 0x20, 0x00,  true,  true}  // 8 доп. байт
+        {(uint8_t)  0x01, 0x01, 0x00, 0x00, 0x01,  true, false}, // 0
+        {(uint8_t)  0xFF, 0xFF, 0x00, 0x00, 0x02,  true, false}, // 1
+        {(uint8_t)  0xC1, 0xC1, 0x00, 0x00, 0x03,  true, false}, // 2 байт режима
+        {(uint8_t)  0xC1, 0xFF, 0x00, 0x01, 0x00,  true,  true}, // 3 доп. байт
+        {(uint8_t)  0x77, 0x77, 0x00, 0x00, 0x01,  true, false}, // 4 
+        {(uint8_t)  0x01, 0x01, 0x00, 0x00, 0x02,  true, false}, // 5 байт команды + тм = лог.0
+        {(uint8_t)  0x01, 0xFF, 0x01, 0x00, 0x00, false,  true}, // 6 доп. байт
+        {(uint8_t)  0x60, 0x60, 0x01, 0x00, 0x01, false, false}, // 7 байт команды + тм = лог.1
+        {(uint8_t)  0x60, 0xFF, 0x20, 0x00, 0x00,  true,  true}  // 8 доп. байт
         
     };
     
@@ -78,12 +123,20 @@ void testBsp::testCheckRxProtocol()
         pos += sprintf(&buf[pos], "\t s.regime=0x%.2X, regime=0x%.2X \n", s1[i].regime, regime);
         pos += sprintf(&buf[pos], "\t s.tmTx=0x%.2X, tmTx=0x%.2X \n", s1[i].tmTx, tmTx);
         pos += sprintf(&buf[pos], "\t s.newData=0x%.2X, newData=0x%.2X", s1[i].newData, newData);
+        pos += sprintf(&buf[pos], "\t s.error=0x%.2X, error=0x%.2X", s1[i].error, error);
         
+        // проверка буферного байта данных 
         CPPUNIT_ASSERT_EQUAL_MESSAGE(buf, s1[i].bufRx, bufRx);
+        // проверка принятой команды
         CPPUNIT_ASSERT_EQUAL_MESSAGE(buf, s1[i].com, com);
+        // проверка принятого режима
         CPPUNIT_ASSERT_MESSAGE      (buf, s1[i].regime == getRegime());
+        // проверка текущего уровня выхода ТМ
         CPPUNIT_ASSERT_EQUAL_MESSAGE(buf, s1[i].tmTx, tmTx);
+        // првоерка флага наличия достоверной посылки
         CPPUNIT_ASSERT_EQUAL_MESSAGE(buf, s1[i].newData, isNewData());
+        // проверка установки / сброса ошибок
+        CPPUNIT_ASSERT_EQUAL_MESSAGE(buf, s1[i].error, error);
     }
 }
 
@@ -91,30 +144,47 @@ void testBsp::testGetCom()
 {
     uint8_t out[] = {16, 0, 0, 0};
     com = out[0];
-    uint8_t o = out[0];
     for(uint8_t i = 0; i < (sizeof(out) / sizeof(out[0])); i++) {
         uint8_t t = getCom();
         pos = sprintf(&buf[0], "Test=1, step=%u: \n", i);
-        pos += sprintf(&buf[pos], "\t out=%u, result=%u, o=%u", out[i], t, o);
+        pos += sprintf(&buf[pos], "\t out=%u, result=%u", out[i], t);
         
+        // проверка возврата правильного номера команды, а также что 
+        // после этого происходит сброс в 0
         CPPUNIT_ASSERT_MESSAGE(buf, t == out[i]);
     }
 }
 
 void testBsp::testGetRegime()
 {
-    regime = 2; 
-    CPPUNIT_ASSERT_MESSAGE("1", getRegime() == 2);
-    CPPUNIT_ASSERT_MESSAGE("2", getRegime() == 0);
-    CPPUNIT_ASSERT_MESSAGE("3", getRegime() == 0);
+    uint8_t out[] = {2, 0, 0, 0};
+    regime = out[0]; 
+    // проверка возврата правильного номера команды, а также что 
+       // после этого происходит сброс номера в 0
+    for(uint8_t i = 0; i < (sizeof(out) / sizeof(out[0])); i++) {
+        uint8_t t = getRegime();
+        pos = sprintf(&buf[0], "Test=1, step=%u: \n", i);
+        pos += sprintf(&buf[pos], "\t out=%u, result=%u", out[i], t);
+        
+        // проверка возврата правильного значения режима, а также что 
+        // после этого происходит сброс в 0
+        CPPUNIT_ASSERT_MESSAGE(buf, t == out[i]);
+    }
 }
 
 void testBsp::testIsNewData()
 {
-    newData = true;
-    CPPUNIT_ASSERT_MESSAGE("1", isNewData() == true);
-    CPPUNIT_ASSERT_MESSAGE("2", isNewData() == false);
-    CPPUNIT_ASSERT_MESSAGE("3", isNewData() == false);
+    bool out[] = {true, false, false, false};
+    newData = out[0];
+    for(uint8_t i = 0; i < (sizeof(out) / sizeof(out[0])); i++) {
+        bool t = isNewData();
+        pos = sprintf(&buf[0], "Test=1, step=%u: \n", i);
+        pos += sprintf(&buf[pos], "\t out=%u, result=%u", out[i], t);
+        
+        // проверка возврата правильного флага нового сообщения, а также что 
+        // после этого происходит сброс н в 0
+        CPPUNIT_ASSERT_MESSAGE(buf, t == out[i]);
+    }
 }
 
 void testBsp::testMakeTxData()
