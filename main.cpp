@@ -1,4 +1,4 @@
-/*
+﻿/*
  * 	main.cpp
  *
  *  Created on: 15.05.2014
@@ -10,6 +10,8 @@
 #include <avr/wdt.h>
 #include "inc/dr.h"
 #include "inc/bsp.h"
+
+#define VERS 0x0101
 
 /**
  *	@mainpage MainPage
