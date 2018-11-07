@@ -8,10 +8,11 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <avr/wdt.h>
-#include "inc/dr.h"
-#include "inc/bsp.h"
+#include "dr.h"
+#include "bsp.h"
+#include "protocolPcM.h"
 
-#define VERS 0x0102
+#define VERS 0x0103
 
 /**
  *	@mainpage MainPage
@@ -82,9 +83,9 @@ static inline void disableDrIO();
 
 //---ПЕРЕМЕННЫЕ-----------------------------------------------------------------
 
-TDigitalRetrans dr;	///< Класс работы с ЦПП
-TBsp bsp;			///< Класс работы с БСП.
-
+TDigitalRetrans dr;		///< Класс работы с ЦПП
+TBsp bsp;				///< Класс работы с БСП.
+TProtocolPcM drModbus;	///< Класс работы с ЦПП Modbus
 
 //---ОПРЕДЕЛЕНИЯ ФУНКЦИЙ--------------------------------------------------------
 
@@ -118,54 +119,69 @@ __attribute__ ((OS_main)) int main(void) {
 	uint8_t regime = 0;
 
 	disableDrIO();
+	drModbus.setTick(115200, 150);
+	drModbus.setAddressLan(1);
 	sei();
 
 	while(1) {
 		// получена посылка с БСП, надо обработать и ответить
-		if (bsp.isNewData()) {
-			PORTA |= (1 << TP4);
-			// установка режима работы
-			regime = bsp.getRegime();
-			dr.setRegime(regime);
-			// запись команды на передачу
-			com = bsp.getCom();
-			dr.setCom(com);
+//		if (bsp.isNewData()) {
+//			PORTA |= (1 << TP4);
+//			// установка режима работы
+//			regime = bsp.getRegime();
+//			dr.setRegime(regime);
+//			// запись команды на передачу
+//			com = bsp.getCom();
+//			dr.setCom(com);
+//
+//			// подготовка данных для отправки в БСП
+//			bsp.tmRx = (PINC & (1 << TM_RX));	//текущий уровень входа ТМ
+//			com = dr.getCom();
+//			error = dr.getError();
+//			bsp.makeTxData(com, error);
+//
+//			// передача двух байт данных в БСП, если сдвиговый регистр пуст
+//			while(!(UCSR0A & (1 << UDRE0)));
+//			UDR0 = bsp.bufTx[0];
+//			while(!(UCSR0A & (1 << UDRE0)));
+//			UDR0 = bsp.bufTx[1];
+//
+//			// установка значения на выходе ТМ
+//			if (bsp.tmTx) {
+//				PORTC = (1 << TM_TX);
+//			} else {
+//				PORTC &= ~(1 << TM_TX);
+//			}
+//			PORTA &= ~(1 << TP4);
+//		}
 
-			// подготовка данных для отправки в БСП
-			bsp.tmRx = (PINC & (1 << TM_RX));	//текущий уровень входа ТМ
-			com = dr.getCom();
-			error = dr.getError();
-			bsp.makeTxData(com, error);
+		if (drModbus.isReadData()) {
+			drModbus.readData();
 
-			// передача двух байт данных в БСП, если сдвиговый регистр пуст
-			while(!(UCSR0A & (1 << UDRE0)));
-			UDR0 = bsp.bufTx[0];
-			while(!(UCSR0A & (1 << UDRE0)));
-			UDR0 = bsp.bufTx[1];
+			if (drModbus.isSendData()) {
+				// отключение прерывания приемника
+				UCSR1B &= ~(1 << RXCIE1);
+				// включение прерывания передатчика
+				UCSR1B |= (1 << UDRIE1) | (1 << TXCIE1);
 
-			// установка значения на выходе ТМ
-			if (bsp.tmTx) {
-				PORTC = (1 << TM_TX);
-			} else {
-				PORTC &= ~(1 << TM_TX);
+				UDR1 = drModbus.pull();
 			}
-			PORTA &= ~(1 << TP4);
 		}
 
 		// при ошибках связи с БСП выключим ЦПП
-		if (bsp.isError()) {
-			dr.disable();
-		}
-
-		// выключение приема/передачи по ЦПП в случае режима "Выключен"
-		// и включение в противном случае
-		if (dr.getError() == dr.ERR_OFF) {
-			PORTA |= (1 << TP3);
-			disableDrIO();
-			PORTA &= ~(1 << TP3);
-		} else {
-			enableDrIO();
-		}
+//		if (bsp.isError()) {
+//			dr.disable();
+//		}
+//
+//		// выключение приема/передачи по ЦПП в случае режима "Выключен"
+//		// и включение в противном случае
+//		if (dr.getError() == dr.ERR_OFF) {
+//			PORTA |= (1 << TP3);
+//			disableDrIO();
+//			PORTA &= ~(1 << TP3);
+//		} else {
+//			enableDrIO();
+//		}
 
 		PINA |= (1 << LED_VD19);
 		wdt_reset();
@@ -179,9 +195,12 @@ __attribute__ ((OS_main)) int main(void) {
  *	Проверяется наличие полученной посылки по ЦПП.
  */
 ISR(TIMER1_COMPA_vect) {
-	dr.decError();
-	dr.checkConnect();
-	bsp.checkConnect();
+//	dr.decError();
+//	dr.checkConnect();
+//	bsp.checkConnect();
+	PORTA |= (1 << TP4);
+	drModbus.tick();	// выполняется около 2мкс
+	PORTA &= ~(1 << TP4);
 }
 
 
@@ -194,7 +213,7 @@ ISR(USART0_RX_vect) {
 	uint8_t byte = UDR0;		// регистр данных
 
 	// Обработка данных принятого байта
-	bsp.checkRxProtocol(byte, status & ((1 << FE0) | (1 << DOR0)));
+	bsp.checkRxProtocol(byte, status & ((1 << FE0) | (1 << DOR0) | (1 << UPE0)));
 }
 
 
@@ -203,20 +222,45 @@ ISR(USART0_RX_vect) {
  * 	Прием байт данных по ЦПП.
  */
 ISR(USART1_RX_vect) {
+	PORTA |= (1 << TP3);
+
 	uint8_t status = UCSR1A;	// регистр состояния
 	uint8_t byte = UDR1;		// регистр данных
 
 	// Обработка принятого байта
-	dr.checkByteProtocol(byte, status & ((1 << FE1) | (1 << DOR1)));
-}
+	if (status & ((1 << FE1) | (1 << DOR1) | (1 << UPE1))) {
+		drModbus.setReadState();
+	} else {
+		drModbus.push(byte);
+	}
 
+	PORTA &= ~(1 << TP3);
+}
 
 /** Прерывание по опустошению буфера передачи UART1.
  *
  * 	Передача байт данных по ЦПП.
  */
 ISR(USART1_UDRE_vect) {
-	UDR1 = dr.getTxByte();
+	if (drModbus.isSendData()) {
+		UDR1 = drModbus.pull();
+	} else {
+		UCSR1B &= ~(1 << UDRIE1);
+	}
+}
+
+/**	Прерывание по завершению передачи UART1.
+ *
+ * 	Отключаются прервания по завершению передачи.
+ * 	Включается прерывание по приему данных.
+ *
+ * 	Устанавливается режим приема данных.
+ */
+ISR(USART1_TX_vect) {
+	UCSR1B  &= ~(1 << TXCIE1);
+	UCSR1B  |= (1 << RXCIE1);
+
+	drModbus.setReadState();
 }
 
 
@@ -259,28 +303,30 @@ void low_level_init() {
 
 	// UART1
 	// ЦПП
-	// 500бит/с при кварце 20Мгц
 	// включено удвоение скорости работы
 	// 1 стоп бит, 8 бит данных, контроль четности отключен
-	// включены прерывания по приему и опустошению буфера
-	UBRR1   = 4;
+	// включен приемник и прерывание по приему
+	// UBRR(U2X1 = 0) = (F_CPU / (16 * BAUD)) - 1
+	// UBRR(U2X1 = 1) = (F_CPU / (8 * BAUD)) - 1
+	// UBRR1 = 4,  U2X1 = 1 -> 500кбит/с при кварце 20МГц
+	// UBRR1 = 21, U2X1 = 1 -> 115.2кбит/с при кварце 20МГц
+	UBRR1   = 21;
 	UCSR1A  = (1 << U2X1);
-	UCSR1B  = (1 << RXCIE1) | (1 << UDRIE1) | (0 << UCSZ12);
-	UCSR1C  = (1 << UCSZ10) | (1 << UCSZ11);	//  по умолчанию
-	UCSR1B  |= (1 << RXEN1) | (1 << TXEN1);
-
-
+	UCSR1B  = (1 << RXCIE1) | (0 << UDRIE1) | (0 << TXCIE1) | (0 << UCSZ12);
+	UCSR1C  = (1 << UCSZ11) | (1 << UCSZ10);
+	UCSR1B  |= (1 << RXEN1) | (0 << TXEN1);
 
 	// Таймер 1
 	// режим CTC
-	// делитель N = 8, счет до OCR = 2499
 	// частота = F_CPU / (2 * N * (1 + OCR)
-	// при F_CPU = 20МГц получим 500Гц
+	// F_CPU = 20MHz, N = 8, OCR = 2499 ->  500 Hz (или раз в 1мс)
+	// F_CPU = 20MHz, N = 8, OCR = 124 -> 10000 HZ (или раз в 50мкс)
+	// F_CPU = 20MHz, N = 8, OCR = 374 -> 3333.3 Hz (Или раз в 150мкс)
 	TCCR1A 	= (0 << WGM11) | (0 << WGM10);
 	TCCR1B 	= (0 << WGM13) | (1 << WGM12);
 	TCCR1C 	= 0;	// по умолчанию
 	TCNT1 	= 0;
-	OCR1A 	= 2499;
+	OCR1A 	= 374;
 	TIMSK1 	= (1 << OCIE1A);
 	TCCR1B |= (0 << CS12) | (1 << CS11) | (0 << CS10); // запуск с делителем 8
 }

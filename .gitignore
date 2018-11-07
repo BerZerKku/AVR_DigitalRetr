@@ -1,8 +1,11 @@
 Debug/
+
 Release/
+!/Release/DigitalRetr.hex
+
+Gtest/
+
 html/
-default/
-tests/dist/
-tests/build/
+
 *.aps
 *.aws
