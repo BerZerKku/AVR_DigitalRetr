@@ -210,24 +210,27 @@ uint16_t TProtocolModbus::calcCRC(uint8_t num) {
 	uint8_t low = 0xFF;
 	uint8_t hi = 0xFF;
 	for (uint8_t i = 0, tmp; i < num; i++) {
-		tmp = hi ^ buf_[i];
-		hi = low ^ pgm_read_byte(&CRC_HI[tmp]);
-		low = pgm_read_byte(&CRC_LOW[tmp]);
+		tmp = low ^ buf_[i];
+		low = hi ^ pgm_read_byte(&CRC_HI[tmp]);
+		hi = pgm_read_byte(&CRC_LOW[tmp]);
 	}
 	return ((hi << 8) | low);
 }
 
 /**	Возвращает контрольную сумму переданную в посылке.
  *
- *	Рассчет CRC осуществляется если в посылке есть как минимум 4 байта (адрес,
+ *	Расчет CRC осуществляется если в посылке есть как минимум 4 байта (адрес,
  *	код команды, и 2 байта контрольной суммы).
+ *
+ *	Контрольная сумма передается младшим байтом вперед
  *
  * 	@return Контрольная сумма посылки.
  */
 uint16_t TProtocolModbus::getCRC() const {
 	uint16_t crc = 0xFFFF;
 	if (cnt_ >= 4) {
-		crc = (((uint16_t) buf_[cnt_ - 2] << 8) + buf_[cnt_ - 1]);
+		crc = *((uint16_t *) &buf_[cnt_ - 2]);
+//		crc = (((uint16_t) buf_[cnt_ - 2] << 8) + buf_[cnt_ - 1]);
 	}
 	return crc;
 }
@@ -744,6 +747,8 @@ bool TProtocolModbus::comReadID() {
 
 // Чтение флагов.
 TProtocolModbus::CHECK_ERR TProtocolModbus::readCoil(uint16_t adr, bool &val) {
+
+#ifdef UTEST
 	// диапазон допустимых адресов
 	if ((adr == 0) || (adr > 300))
 		return CHECK_ERR_ADR;
@@ -758,6 +763,9 @@ TProtocolModbus::CHECK_ERR TProtocolModbus::readCoil(uint16_t adr, bool &val) {
 	}
 
 	return CHECK_ERR_NO;
+#endif
+
+	return CHECK_ERR_ADR;
 }
 
 
