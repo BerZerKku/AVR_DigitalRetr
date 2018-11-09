@@ -197,7 +197,7 @@ bool TProtocolModbus::readData() {
  *	@see ADDRESS_ERR
  * 	@adr Адрес, который будет сравниваться с установленным.
  */
-bool TProtocolModbus::checkAddressLan(uint8_t adr) {
+bool TProtocolModbus::checkAddressLan(uint8_t adr) const {
 	return ((adr != ADDRESS_ERR) && (address_ == adr));
 }
 
@@ -242,8 +242,8 @@ uint16_t TProtocolModbus::getCRC() const {
  */
 void TProtocolModbus::addCRC() {
 	uint16_t crc = calcCRC(cnt_);
-	buf_[cnt_++] = crc >> 8;
 	buf_[cnt_++] = crc;
+	buf_[cnt_++] = crc >> 8;
 }
 
 /**	Проверка полученной посылки на соответствие протоколу.
@@ -323,6 +323,13 @@ bool TProtocolModbus::comReadCoils() {
 		return false;
 	}
 
+	// проверка количества полученных данных
+	// ADR + FUNC + START ADR + QUANTITY OF COILS + CRC = 1 + 1 + 2 + 2 + 2 = 8
+	if (8 != cnt_) {
+		setException(EXCEPTION_04H_DEVICE_FAILURE);
+		return false;
+	}
+
 	// подготовка ответа
 	uint8_t cnt = 2;						// адрес + команда
 	buf_[cnt++] = (num + 7) / 8;			// кол-во передаваемых байт данных
@@ -372,6 +379,13 @@ bool TProtocolModbus::comReadDInputs() {
 	// проверка количества регистров
 	if ((num == 0) || (num > MAX_NUM_COILS)) {
 		setException(EXCEPTION_03H_ILLEGAL_DATA_VAL);
+		return false;
+	}
+
+	// проверка количества полученных данных
+	// ADR + FUNC + START ADR + QUANTITY OF INPUTS + CRC = 1 + 1 + 2 + 2 + 2 = 8
+	if (8 != cnt_) {
+		setException(EXCEPTION_04H_DEVICE_FAILURE);
 		return false;
 	}
 
@@ -427,6 +441,13 @@ bool TProtocolModbus::comReadRegisters() {
 		return false;
 	}
 
+	// проверка количества полученных данных
+	// ADR + FUNC + START ADR + QUANTITY OF REG + CRC = 1 + 1 + 2 + 2 + 2 = 8
+	if (8 != cnt_) {
+		setException(EXCEPTION_04H_DEVICE_FAILURE);
+		return false;
+	}
+
 	// подготовка ответа, изначально все данные заполнены нулями
 	uint8_t cnt = 2; 						// адрес + команда
 	buf_[cnt++] = num * 2; 			// кол-во передаваемых байт данных
@@ -474,6 +495,13 @@ bool TProtocolModbus::comReadIRegisters() {
 	// проверка количества регистров
 	if ((num == 0) || (num > MAX_NUM_REGISTERS)) {
 		setException(EXCEPTION_03H_ILLEGAL_DATA_VAL);
+		return false;
+	}
+
+	// проверка количества полученных данных
+	// ADR + FUNC + START ADR + QUANTITY OF REG + CRC = 1 + 1 + 2 + 2 + 2 = 8
+	if (8 != cnt_) {
+		setException(EXCEPTION_04H_DEVICE_FAILURE);
 		return false;
 	}
 
@@ -526,6 +554,13 @@ bool TProtocolModbus::comWriteCoil() {
 		return false;
 	}
 
+	// проверка количества полученных данных
+	// ADR + FUNC + OUTPUT ADR + OUTPUT VALUE + CRC = 1 + 1 + 2 + 2 + 2 = 8
+	if (8 != cnt_) {
+		setException(EXCEPTION_04H_DEVICE_FAILURE);
+		return false;
+	}
+
 	TProtocolModbus::CHECK_ERR err = writeCoil(adr, (val == 0xFF00));
 
 	if (err != CHECK_ERR_NO) {
@@ -564,6 +599,13 @@ bool TProtocolModbus::comWriteRegister() {
 	// по сути лишняя проверка, т.к. используется весь диапазон значений
 	if ((val < 0x0000) || (val > 0xFFFF)) {
 		setException(EXCEPTION_03H_ILLEGAL_DATA_VAL);
+		return false;
+	}
+
+	// проверка количества полученных данных
+	// ADR + FUNC + REG ADR + REG VALUE + CRC = 1 + 1 + 2 + 2 + 2 = 8
+	if (8 != cnt_) {
+		setException(EXCEPTION_04H_DEVICE_FAILURE);
 		return false;
 	}
 
@@ -615,6 +657,14 @@ bool TProtocolModbus::comWriteCoils() {
 	// сравнение кол-ва флагов с заявленным кол-вом байт данных в посылке
 	if (((num + 7) / 8) != buf_[6]) {
 		setException(EXCEPTION_03H_ILLEGAL_DATA_VAL);
+		return false;
+	}
+
+	// проверка количества полученных данных
+	// ADR + FUNC + START ADR + QUANTITY OF OUTPUTS + BYTE COUNT(N) + CRC =
+	// 1 + 1 + 2 + 2 + 1 + N + 2 = 8 + N
+	if ((9 + buf_[6]) != cnt_) {
+		setException(EXCEPTION_04H_DEVICE_FAILURE);
 		return false;
 	}
 
@@ -680,6 +730,14 @@ bool TProtocolModbus::comWriteRegisters() {
 	// сравнение кол-ва флагов с заявленным кол-вом байт данных в посылке
 	if (2*num != buf_[6]) {
 		setException(EXCEPTION_03H_ILLEGAL_DATA_VAL);
+		return false;
+	}
+
+	// проверка количества полученных данных
+	// ADR + FUNC + START ADR + QUANTITY OF OUTPUTS + BYTE COUNT(N) + CRC =
+	// 1 + 1 + 2 + 2 + N + 2 = 8 + N
+	if ((9 + buf_[6]) != cnt_) {
+		setException(EXCEPTION_04H_DEVICE_FAILURE);
 		return false;
 	}
 
