@@ -121,6 +121,8 @@ __attribute__ ((OS_main)) int main(void) {
 	disableDrIO();
 	drModbus.setTick(115200, 150);
 	drModbus.setAddressLan(1);
+	drModbus.setEnable();
+
 	sei();
 
 	while(1) {
@@ -156,16 +158,17 @@ __attribute__ ((OS_main)) int main(void) {
 //		}
 
 		if (drModbus.isReadData()) {
+			PORTA |= (1 << TP4);
 			drModbus.readData();
 
 			if (drModbus.isSendData()) {
 				// отключение прерывания приемника
 				UCSR1B &= ~(1 << RXCIE1);
 				// включение прерывания передатчика
-				UCSR1B |= (1 << UDRIE1) | (1 << TXCIE1);
-
 				UDR1 = drModbus.pull();
+				UCSR1B |= (1 << UDRIE1) | (1 << TXCIE1);
 			}
+			PORTA &= ~(1 << TP4);
 		}
 
 		// при ошибках связи с БСП выключим ЦПП
@@ -198,9 +201,7 @@ ISR(TIMER1_COMPA_vect) {
 //	dr.decError();
 //	dr.checkConnect();
 //	bsp.checkConnect();
-	PORTA |= (1 << TP4);
 	drModbus.tick();	// выполняется около 2мкс
-	PORTA &= ~(1 << TP4);
 }
 
 
@@ -222,7 +223,6 @@ ISR(USART0_RX_vect) {
  * 	Прием байт данных по ЦПП.
  */
 ISR(USART1_RX_vect) {
-	PORTA |= (1 << TP3);
 
 	uint8_t status = UCSR1A;	// регистр состояния
 	uint8_t byte = UDR1;		// регистр данных
@@ -231,10 +231,10 @@ ISR(USART1_RX_vect) {
 	if (status & ((1 << FE1) | (1 << DOR1) | (1 << UPE1))) {
 		drModbus.setReadState();
 	} else {
-		drModbus.push(byte);
-	}
 
-	PORTA &= ~(1 << TP3);
+		drModbus.push(byte);
+
+	}
 }
 
 /** Прерывание по опустошению буфера передачи UART1.
@@ -243,7 +243,9 @@ ISR(USART1_RX_vect) {
  */
 ISR(USART1_UDRE_vect) {
 	if (drModbus.isSendData()) {
+		PORTA |= (1 << TP3);
 		UDR1 = drModbus.pull();
+		PORTA &= ~(1 << TP3);
 	} else {
 		UCSR1B &= ~(1 << UDRIE1);
 	}
@@ -314,7 +316,7 @@ void low_level_init() {
 	UCSR1A  = (1 << U2X1);
 	UCSR1B  = (1 << RXCIE1) | (0 << UDRIE1) | (0 << TXCIE1) | (0 << UCSZ12);
 	UCSR1C  = (1 << UCSZ11) | (1 << UCSZ10);
-	UCSR1B  |= (1 << RXEN1) | (0 << TXEN1);
+	UCSR1B  |= (1 << RXEN1) | (1 << TXEN1);
 
 	// Таймер 1
 	// режим CTC

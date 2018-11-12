@@ -1,8 +1,5 @@
 
 #include "protocolModbus.h"
-#ifdef DEBUG
-#include "debug.h"
-#endif
 
 const uint8_t TProtocolModbus::CRC_HI[256] PROGMEM = {
 		0x00, 0xC1, 0x81, 0x40, 0x01,
@@ -805,7 +802,6 @@ bool TProtocolModbus::comReadID() {
 
 // Чтение флагов.
 TProtocolModbus::CHECK_ERR TProtocolModbus::readCoil(uint16_t adr, bool &val) {
-
 #ifdef UTEST
 	// диапазон допустимых адресов
 	if ((adr == 0) || (adr > 300))
@@ -821,15 +817,15 @@ TProtocolModbus::CHECK_ERR TProtocolModbus::readCoil(uint16_t adr, bool &val) {
 	}
 
 	return CHECK_ERR_NO;
-#endif
-
+#else
 	return CHECK_ERR_ADR;
+#endif
 }
 
 
 // Чтение дискретных входов.
 TProtocolModbus::CHECK_ERR TProtocolModbus::readDInput(uint16_t adr, bool &val) {
-
+#ifdef UTEST
 	// диапазон допустимых адресов
 	if ((adr == 0) || (adr > 300))
 		return CHECK_ERR_ADR;
@@ -844,13 +840,14 @@ TProtocolModbus::CHECK_ERR TProtocolModbus::readDInput(uint16_t adr, bool &val) 
 	}
 
 	return CHECK_ERR_NO;
+#else
+	return CHECK_ERR_ADR;
+#endif
 }
-
-
 
 // Чтение внутренних регистров.
 TProtocolModbus::CHECK_ERR TProtocolModbus::readRegister(uint16_t adr, uint16_t &val) {
-
+#ifdef UTEST
 	if ((adr == 0) || (adr > 300))
 		return CHECK_ERR_ADR;
 
@@ -863,12 +860,15 @@ TProtocolModbus::CHECK_ERR TProtocolModbus::readRegister(uint16_t adr, uint16_t 
 	}
 
 	return CHECK_ERR_NO;
+#else
+	return CHECK_ERR_ADR;
+#endif
 }
 
 
 // Чтение входных регистров.
 TProtocolModbus::CHECK_ERR TProtocolModbus::readIRegister(uint16_t adr, uint16_t &val) {
-
+#ifdef UTEST
 	if ((adr == 0) || (adr > 300))
 		return CHECK_ERR_ADR;
 
@@ -881,12 +881,15 @@ TProtocolModbus::CHECK_ERR TProtocolModbus::readIRegister(uint16_t adr, uint16_t
 	}
 
 	return CHECK_ERR_NO;
+#else
+	return CHECK_ERR_ADR;
+#endif
 }
 
 
 // Запись флагов.
 TProtocolModbus::CHECK_ERR TProtocolModbus::writeCoil(uint16_t adr, bool val) {
-
+#ifdef UTEST
 	if ((adr == 0) || (adr > 300))
 		return CHECK_ERR_ADR;
 
@@ -901,12 +904,15 @@ TProtocolModbus::CHECK_ERR TProtocolModbus::writeCoil(uint16_t adr, bool val) {
 	}
 
 	return CHECK_ERR_NO;
+#else
+	return CHECK_ERR_ADR;
+#endif
 }
 
 
 // Запись регистров.
 TProtocolModbus::CHECK_ERR TProtocolModbus::writeRegister(uint16_t adr, uint16_t val) {
-
+#ifdef UTEST
 	if ((adr == 0) || (adr > 300))
 		return CHECK_ERR_ADR;
 
@@ -921,12 +927,15 @@ TProtocolModbus::CHECK_ERR TProtocolModbus::writeRegister(uint16_t adr, uint16_t
 	}
 
 	return CHECK_ERR_NO;
+#else
+	return CHECK_ERR_ADR;
+#endif
 }
 
 
 //	Чтение ID.
 TProtocolModbus::CHECK_ERR TProtocolModbus::readID(char *buf, uint8_t &size) {
-
+#ifdef UTEST
 	static const char ID[] PROGMEM = "Virtual";
 
 	uint8_t cnt = 0;
@@ -943,5 +952,9 @@ TProtocolModbus::CHECK_ERR TProtocolModbus::readID(char *buf, uint8_t &size) {
 	size = cnt;
 
 	return CHECK_ERR_NO;
+#else
+	return CHECK_ERR_DEVICE;
+#endif
+
 }
 

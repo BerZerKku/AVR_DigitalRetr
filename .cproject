@@ -226,9 +226,6 @@
 							<tool id="cdt.managedbuild.tool.gnu.cpp.linker.mingw.base.2105215038" name="MinGW C++ Linker" superClass="cdt.managedbuild.tool.gnu.cpp.linker.mingw.base"/>
 						</toolChain>
 					</folderInfo>
-					<fileInfo id="de.innot.avreclipse.configuration.app.debug.834518065.ECUTTest.665254739" name="protocolModbusTest.cpp" rcbsApplicability="disable" resourcePath="test/protocolModbusTest.cpp" toolsToInvoke="cdt.managedbuild.tool.gnu.cpp.compiler.mingw.base.1968427314.857422335">
-						<tool id="cdt.managedbuild.tool.gnu.cpp.compiler.mingw.base.1968427314.857422335" name="GCC C++ Compiler" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.mingw.base.1968427314"/>
-					</fileInfo>
 					<folderInfo id="de.innot.avreclipse.configuration.app.debug.834518065.ECUTTest.1318048228" name="/" resourcePath="external">
 						<toolChain id="cdt.managedbuild.toolchain.gnu.mingw.base.1328157677" name="MinGW GCC" superClass="cdt.managedbuild.toolchain.gnu.mingw.base">
 							<targetPlatform archList="all" binaryParser="org.eclipse.cdt.core.PE" id="cdt.managedbuild.target.gnu.platform.mingw.base" name="Debug Platform" osList="win32" superClass="cdt.managedbuild.target.gnu.platform.mingw.base"/>
@@ -290,7 +287,7 @@
 						</toolChain>
 					</folderInfo>
 					<sourceEntries>
-						<entry excluding="src/protocolPcM.cpp|main.cpp" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
+						<entry excluding="main.cpp" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>

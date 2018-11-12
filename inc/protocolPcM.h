@@ -33,6 +33,11 @@ public:
 //	~TProtocolPcM() {};
 
 private:
+	/// Внутренние регистры.
+	uint16_t comTx[ADR_REG_MAX];
+
+	/// Входные регистры.
+	uint16_t comRx[ADR_REG_MAX];
 
 	// Чтение внутренних регистров.
 	TProtocolModbus::CHECK_ERR readRegister(uint16_t adr, uint16_t &val);

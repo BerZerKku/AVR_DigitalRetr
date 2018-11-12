@@ -26,9 +26,9 @@ TProtocolModbus::CHECK_ERR TProtocolPcM::readRegister(uint16_t adr, uint16_t &va
 	// по умолчанию будет возвращено 0xFFFF
 	val = 0xFFFF;
 	if (adr == ADR_COM_16_01) {
-
+		val = comTx[ADR_COM_16_01];
 	}  else if (adr == ADR_COM_32_17) {
-
+		val = comTx[ADR_COM_32_17];
 	}
 
 	return CHECK_ERR_NO;
@@ -54,9 +54,11 @@ TProtocolModbus::CHECK_ERR TProtocolPcM::readIRegister(uint16_t adr, uint16_t &v
 	// по умолчанию будет возвращено 0xFFFF
 	val = 0xFFFF;
 	if (adr == ADR_COM_16_01) {
-
+//		val = comRx[ADR_COM_16_01]; FIXME
+		val = comTx[ADR_COM_16_01];
 	}  else if (adr == ADR_COM_32_17) {
-
+//		val = comRx[ADR_COM_32_17]; FIXME
+		val = comTx[ADR_COM_32_17];
 	}
 
 	return CHECK_ERR_NO;
@@ -83,9 +85,9 @@ TProtocolModbus::CHECK_ERR TProtocolPcM::writeRegister(uint16_t adr, uint16_t va
 		return CHECK_ERR_ADR;
 
 	if (adr == ADR_COM_16_01) {
-
+		comTx[ADR_COM_16_01] = val;
 	} else if (adr == ADR_COM_32_17) {
-
+		comTx[ADR_COM_32_17] = val;
 	}
 
 	return CHECK_ERR_NO;
@@ -110,18 +112,21 @@ TProtocolModbus::CHECK_ERR TProtocolPcM::writeRegister(uint16_t adr, uint16_t va
  */
 TProtocolModbus::CHECK_ERR TProtocolPcM::readID(char *buf, uint8_t &size) {
 
-	static const char version[] PROGMEM = "ABAHT";
+	static const char ID[] PROGMEM = "ABAHT";
 
-	for(uint8_t i = 0;  i < (sizeof(version) / sizeof(version[0])); i++) {
-		if (version[i])
-			break;
-
-		buf[size++] = version[i];
+	uint8_t cnt = 0;
+	for(; cnt < (sizeof(ID) / sizeof(ID[0])); cnt++) {
+		if (cnt >= size)
+			return CHECK_ERR_DEVICE;	// невозможно передать всю информацию
+		buf[cnt] = pgm_read_byte(&ID[cnt]);
 	}
 
 	// FIXME - добавить текущее состояние протокола
-	// 0x00 - выкл, 0xFF - вкл.
-	buf[size++] = 0x00;
+		// По сути ерунда. Если протокол не в работе, то до этого этапа не дойдет.
+	buf[cnt++] = isEnable() ? 0x00 : 0xFF;
+
+	// количество передаваемых данных
+	size = cnt;
 
 	return CHECK_ERR_NO;
 }
