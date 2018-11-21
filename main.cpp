@@ -8,9 +8,8 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <avr/wdt.h>
-#include "dr.h"
-#include "bsp.h"
 #include "protocolPcM.h"
+#include "protocolS.h"
 
 #define VERS 0x0103
 
@@ -83,9 +82,9 @@ static inline void disableDrIO();
 
 //---ПЕРЕМЕННЫЕ-----------------------------------------------------------------
 
-TDigitalRetrans dr;		///< Класс работы с ЦПП
-TBsp bsp;				///< Класс работы с БСП.
 TProtocolPcM drModbus;	///< Класс работы с ЦПП Modbus
+ProtocolS bspS;
+volatile static uint8_t num_1ms = 0;
 
 //---ОПРЕДЕЛЕНИЯ ФУНКЦИЙ--------------------------------------------------------
 
@@ -113,53 +112,64 @@ void disableDrIO() {
  * 	@return Нет.
  */
 __attribute__ ((OS_main)) int main(void) {
+	uint16_t dout = 0;
+	uint16_t din = 0;
 
-	uint8_t com = 0;
-	uint8_t error = 0;
-	uint8_t regime = 0;
-
-	disableDrIO();
+	enableDrIO();
 	drModbus.setTick(115200, 150);
 	drModbus.setAddressLan(1);
 	drModbus.setEnable();
 
+	bspS.setEnable();
+
 	sei();
 
 	while(1) {
-		// получена посылка с БСП, надо обработать и ответить
-//		if (bsp.isNewData()) {
-//			PORTA |= (1 << TP4);
-//			// установка режима работы
-//			regime = bsp.getRegime();
-//			dr.setRegime(regime);
-//			// запись команды на передачу
-//			com = bsp.getCom();
-//			dr.setCom(com);
-//
-//			// подготовка данных для отправки в БСП
-//			bsp.tmRx = (PINC & (1 << TM_RX));	//текущий уровень входа ТМ
-//			com = dr.getCom();
-//			error = dr.getError();
-//			bsp.makeTxData(com, error);
-//
-//			// передача двух байт данных в БСП, если сдвиговый регистр пуст
-//			while(!(UCSR0A & (1 << UDRE0)));
-//			UDR0 = bsp.bufTx[0];
-//			while(!(UCSR0A & (1 << UDRE0)));
-//			UDR0 = bsp.bufTx[1];
-//
-//			// установка значения на выходе ТМ
-//			if (bsp.tmTx) {
-//				PORTC = (1 << TM_TX);
-//			} else {
-//				PORTC &= ~(1 << TM_TX);
-//			}
-//			PORTA &= ~(1 << TP4);
-//		}
+
+		if (num_1ms >= 10) {
+			bspS.setIdle();
+			num_1ms = 0;
+		}
+
+		if (bspS.isReadData()) {
+
+			bspS.readData();
+
+			dout = bspS.getDOut(bspS.D_OUTPUT_16_01);
+			drModbus.setDO(drModbus.D_OUTPUT_16_01, dout);
+
+			dout = bspS.getDOut(bspS.D_OUTPUT_32_17);
+			drModbus.setDO(drModbus.D_OUTPUT_32_17, dout);
+
+
+			PINA = (1 << LED_VD20);
+			num_1ms = 3;
+		}
+
+		if (num_1ms > 2) {
+			if (bspS.sendData()) {
+				if (bspS.isSendData()) {
+					uint8_t byte;
+					if (bspS.pull(byte)) {
+						PINA = (1 << LED_VD19);
+						UCSR0B &= ~(1 << RXCIE0);
+						UDR0 = byte;
+						UCSR0B |= (1 << UDRIE0) | (1 << TXCIE0);
+					}
+				}
+			}
+		}
 
 		if (drModbus.isReadData()) {
 			PORTA |= (1 << TP4);
-			drModbus.readData();
+			if (drModbus.readData()) {
+
+				din = drModbus.getDI(drModbus.D_INPUT_16_01);
+				bspS.setDInput(bspS.D_INPUT_16_01, din);
+
+				din = drModbus.getDI(drModbus.D_INPUT_32_17);
+				bspS.setDInput(bspS.D_INPUT_32_17, din);
+			}
 
 			if (drModbus.isSendData()) {
 				// отключение прерывания приемника
@@ -171,22 +181,7 @@ __attribute__ ((OS_main)) int main(void) {
 			PORTA &= ~(1 << TP4);
 		}
 
-		// при ошибках связи с БСП выключим ЦПП
-//		if (bsp.isError()) {
-//			dr.disable();
-//		}
-//
-//		// выключение приема/передачи по ЦПП в случае режима "Выключен"
-//		// и включение в противном случае
-//		if (dr.getError() == dr.ERR_OFF) {
-//			PORTA |= (1 << TP3);
-//			disableDrIO();
-//			PORTA &= ~(1 << TP3);
-//		} else {
-//			enableDrIO();
-//		}
 
-		PINA |= (1 << LED_VD19);
 		wdt_reset();
 	}
 }
@@ -198,12 +193,17 @@ __attribute__ ((OS_main)) int main(void) {
  *	Проверяется наличие полученной посылки по ЦПП.
  */
 ISR(TIMER1_COMPA_vect) {
-//	dr.decError();
-//	dr.checkConnect();
-//	bsp.checkConnect();
+	static uint8_t cnt = 0;
+
+	if (++cnt > 6) {
+		if (num_1ms < 10) {
+			num_1ms++;
+		}
+		cnt = 0;
+	}
+
 	drModbus.tick();	// выполняется около 2мкс
 }
-
 
 /** Прерывание по приему UART0.
  *
@@ -213,8 +213,33 @@ ISR(USART0_RX_vect) {
 	uint8_t status = UCSR0A;	// региcтр состояния
 	uint8_t byte = UDR0;		// регистр данных
 
+
 	// Обработка данных принятого байта
-	bsp.checkRxProtocol(byte, status & ((1 << FE0) | (1 << DOR0) | (1 << UPE0)));
+	bspS.push(byte, status & ((1 << FE0) | (1 << DOR0) | (1 << UPE0)));
+	num_1ms = 0;
+}
+
+/**
+ *
+ */
+ISR(USART0_UDRE_vect) {
+	uint8_t byte = 0;
+	if (bspS.pull(byte)) {
+		UDR0 = byte;
+		num_1ms = 0;
+	} else {
+		UCSR0B &= ~(1 << UDRIE0);
+	}
+}
+
+/**
+ *
+ */
+ISR(USART0_TX_vect) {
+	UCSR0B  &= ~(1 << TXCIE0);
+	UCSR0B  |= (1 << RXCIE0);
+
+	bspS.setIdle();
 }
 
 
@@ -233,7 +258,6 @@ ISR(USART1_RX_vect) {
 	} else {
 
 		drModbus.push(byte);
-
 	}
 }
 
@@ -243,9 +267,7 @@ ISR(USART1_RX_vect) {
  */
 ISR(USART1_UDRE_vect) {
 	if (drModbus.isSendData()) {
-		PORTA |= (1 << TP3);
 		UDR1 = drModbus.pull();
-		PORTA &= ~(1 << TP3);
 	} else {
 		UCSR1B &= ~(1 << UDRIE1);
 	}
@@ -264,7 +286,6 @@ ISR(USART1_TX_vect) {
 
 	drModbus.setReadState();
 }
-
 
 /**	Инициализация периферии.
  *
@@ -299,7 +320,7 @@ void low_level_init() {
 	// включено прерывание по приему
 	UBRR0   = 64;
 	UCSR0A  = (1 << U2X0);
-	UCSR0B  = (1 << RXCIE0) | (0 << UCSZ02);
+	UCSR0B  = (1 << RXCIE0) | (0 << UDRIE0) | (0 << TXCIE0) | (0 << UCSZ02);
 	UCSR0C  = (1 << UCSZ00) | (1 << UCSZ01);	//  по умолчанию
 	UCSR0B  |= (1 << RXEN0) | (1 << TXEN0);
 

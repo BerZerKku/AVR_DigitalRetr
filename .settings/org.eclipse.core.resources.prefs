@@ -1,8 +1,11 @@
 eclipse.preferences.version=1
 encoding//inc/bsp.h=UTF-8
 encoding//inc/dr.h=UTF-8
+encoding//inc/protocolS.h=Windows-1251
+encoding//src/protocolS.cpp=Windows-1251
 encoding//test/crc16_Test.cpp=Windows-1251
 encoding//test/protocolModbus_Test.cpp=Windows-1251
 encoding//test/protocolPcM_Test.cpp=Windows-1251
+encoding//test/protocolS_Test.cpp=Windows-1251
 encoding/<project>=UTF-8
 encoding/main.cpp=UTF-8

@@ -6,6 +6,8 @@
 #include "crc16.h"
 using namespace std;
 
+
+#if false
 // размер массива
 #define SIZE_ARRAY(arr) (sizeof(arr) / sizeof(arr[0]))
 
@@ -1294,3 +1296,5 @@ TEST_F(ProtocolModbusTest, com_0x11_slave_ID) {
 	ASSERT_TRUE(readCom(req, SIZE_ARRAY(req), req[0])) << msg;
 	ASSERT_TRUE(checkArray(res, SIZE_ARRAY(res))) << msg;
 }
+
+#endif

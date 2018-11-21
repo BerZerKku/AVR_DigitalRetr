@@ -227,7 +227,6 @@ uint16_t TProtocolModbus::getCRC() const {
 	uint16_t crc = 0xFFFF;
 	if (cnt_ >= 4) {
 		crc = *((uint16_t *) &buf_[cnt_ - 2]);
-//		crc = (((uint16_t) buf_[cnt_ - 2] << 8) + buf_[cnt_ - 1]);
 	}
 	return crc;
 }
