@@ -6,3 +6,5 @@ tests/dist/
 tests/build/
 *.aps
 *.aws
+
+/GTest/
