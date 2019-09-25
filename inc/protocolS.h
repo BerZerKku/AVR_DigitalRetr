@@ -27,6 +27,18 @@
 /// Позиция указанного байта данных в посылке протокола.
 #define BYTE(n) (n + 4)
 
+#ifndef TEST_FRIENDS
+/*
+  Дефайн необходимый для тестирования private и protected методов.
+  Определяется в файле с тестом.
+  Например:
+  #define TEST_FRIENDS \
+    friend class IEC61850goose_Test_decodeLength_Test; \
+    friend class IEC61850goose_Test_getEthernetHdr_Test;
+ */
+#define TEST_FRIENDS
+#endif
+
 /**	\brief Класс работы с протоколом СТАНДАРТНЫЙ.
  *
  * 	--- Glossary ----
@@ -41,7 +53,7 @@
  * 		- 0x55, sync character 1
  * 		- 0xAA, sync character 2
  * 	- PDU:
- * 		- funcion code, 1 byte;
+ * 		- funcion code, 1 byte
  * 		- quantity of data bytes = N, 1 byte
  * 		- data bytes, N bytes
  * 	- checksum, 1 byte:
@@ -49,52 +61,59 @@
  *
  */
 class ProtocolS {
-	/// Максимальный размер буфера приема/передачи.
+	TEST_FRIENDS;
+
+	/// Maximum rx/tx buffer size.
 	static const uint8_t BUF_SIZE_MAX = 10;
 
-	/// Minimum size of ADU.
+	/// Minimum ADU size.
 	static const uint8_t MIN_SIZE_ADU = 5;
 
-	/// First sync character.
-	static const uint8_t SYNCH_CHAR_1 = 0x55;
+	/// First character preambule.
+	static const uint8_t PREAMBLE_CHAR_1 = 0x55;
 
-	/// Second sync character.
-	static const uint8_t SYNCH_CHAR_2 = 0xAA;
+	/// Second character preambule.
+	static const uint8_t PREAMBLE_CHAR_2 = 0xAA;
+
+	/// Command transmitted to the BSP.
+	static const uint8_t COM_TO_BSP = 0x11;
+
+	/// Comand received from the BSP.
+	static const uint8_t COM_FROM_BSP = 0x12;
 
 public:
 
-	typedef enum {
+	enum state_t {
 		STATE_OFF 	= 0,
 		STATE_IDLE 	= 1,
 		STATE_READ 	= 2,
 		STATE_READ_OK = 3,
 		STATE_WRITE = 4
-	} state_t;
+	};
 
 	/// Дискретные входы (клеммы передатчика).
-	typedef enum {
+	enum dInput_t {
 		D_INPUT_16_01 = 0,	///< Дискретные входы с 16 по 1 (1 - установлен).
 		D_INPUT_32_17,		///< Дискретные входы с 32 по 17 (1 - установлен).
 		//
 		D_INPUT_MAX			///< Количество элементов в списке.
-	} dInput_t;
+	};
 
 	/// Дискретные выходы (клеммы приемника).
-	typedef enum {
+	enum dOutput_t{
 		D_OUTPUT_16_01 = 0,	///< Дискретные выходы с 16 по 1 (1 - установлен).
 		D_OUTPUT_32_17,		///< Дискретные выходы с 32 по 17 (1 - установлен).
 		//
 		D_OUTPUT_MAX		///< Количество элементов в списке.
-	} dOutput_t;
+	};
 
 
 	/// Конструктор.
 	ProtocolS();
 
-#ifdef UTEST
 	/// Деструктор.
-	virtual ~ProtocolS() {};
-#endif
+	~ProtocolS() {};
+
 
 	/**	Обработка принятых данных.
 	 *
@@ -118,10 +137,6 @@ public:
 	 * 	@return true если принят пакет, иначе false.
 	 */
 	bool isReadData();
-
-	bool isIdle() const { return (state == STATE_IDLE); }
-	uint8_t getState() const { return state; }
-	bool checkState(state_t state) { return state == this->state; }
 
 	/** Проверка наличия данных для передачи.
 	 *
@@ -175,7 +190,7 @@ public:
 	 */
 	void setDInput(dInput_t din, uint16_t val);
 
-	/// Устанавливает состояние ожидания.
+	/// Установка состояние ожидания.
 	void setIdle();
 
 private:
@@ -206,7 +221,12 @@ private:
 	///	Возвращает контрольную сумму ADU.
 	uint8_t getCRC() const;
 
-
+	/**	Проверка текущего состояния.
+	 *
+	 * 	@param[in] state Состояние.
+	 * 	@return True если текущее состояние совпадает с полученным, иначе false.
+	 */
+	bool checkState(state_t state) { return state == this->state; }
 
 	/**	Добавляет информацию для ADU.
 	 *

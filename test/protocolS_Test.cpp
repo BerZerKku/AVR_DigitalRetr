@@ -1,9 +1,14 @@
 #include <cstdio>
 #include <iostream>
 
+#define TEST_FRIENDS \
+    friend class ProtocolS_Test;
+
 #include "gtest\gtest.h"
 #include "protocolS.h"
 using namespace std;
+
+
 
 // размер массива
 #define SIZE_ARRAY(arr) (sizeof(arr) / sizeof(arr[0]))
@@ -18,6 +23,7 @@ public:
 
 	// конструктор
 	ProtocolS_Test() {
+		mb = nullptr;
 		cnt_msg = 0;
 	};
 
@@ -27,66 +33,63 @@ public:
 	bool sendData(uint8_t buf[], uint8_t num) {
 		for(uint8_t i = 0; i < num; i++) {
 			if (mb->isReadData()) {
-				cnt_msg += sprintf(&msg[cnt_msg], " Error on step %i\n", num);
+				EXPECT_FALSE(true) << "step " << (uint16_t) i << endl;
 				return false;
 			}
 			mb->push(buf[i], false);
 		}
 
-		cnt_msg += sprintf(&msg[cnt_msg], " State is not IDLE -> %02X\n", mb->getState());
-		cnt_msg += sprintf(&msg[cnt_msg], " State check -> %02X\n", mb->checkState(mb->STATE_READ_OK));
-
-
-		if (!mb->isReadData()) {
-			cnt_msg += sprintf(&msg[cnt_msg], " Frame reception ERROR\n");
-			return false;
-		}
-
-		if (!mb->readData()) {
-			cnt_msg += sprintf(&msg[cnt_msg], " Frame proccesing ERROR\n");
-			return false;
-		}
-
-		cnt_msg += sprintf(&msg[cnt_msg], " STATE_OFF -> %d\n", (uint16_t) mb->STATE_OFF);
-		cnt_msg += sprintf(&msg[cnt_msg], " STATE_IDLE -> %d\n", (uint16_t) mb->STATE_IDLE);
-		cnt_msg += sprintf(&msg[cnt_msg], " STATE_READ -> %d\n", (uint16_t) mb->STATE_READ);
-		cnt_msg += sprintf(&msg[cnt_msg], " STATE_READ_OK -> %d\n", (uint16_t) mb->STATE_READ_OK);
-		cnt_msg += sprintf(&msg[cnt_msg], " STATE_WRITE -> %d\n", (uint16_t) mb->STATE_WRITE);
-
-		return false;
+		// Используется для подсчета КС сообщения
+//		if (mb->calcCRC() != mb->getCRC()) {
+//			EXPECT_EQ(mb->getCRC(), mb->calcCRC());
+//			return false;
+//		}
 
 		return true;
 	}
 
 	bool readData(uint8_t buf[], uint8_t num) {
-		bool state = true;
-		uint8_t byte = 0;
+		uint8_t byte;
 
-		if (!mb->isIdle()) {
-			cnt_msg += sprintf(&msg[cnt_msg], " State is not IDLE\n -> %d", mb->state);
+		mb->setIdle();
+
+		if (!mb->sendData()) {
+			EXPECT_TRUE(false);
+			return false;
 		}
 
-		state &= mb->pull(byte);
-		state &= mb->isSendData();
+		if (!mb->isSendData()) {
+			EXPECT_TRUE(false);
+			return false;
+		}
 
-		cnt_msg += sprintf(&msg[cnt_msg], " buf[%d] = ", num);
+		if (num != mb->nTx) {
+			EXPECT_EQ(num, mb->nTx);
+			return false;
+		}
 
 		for(uint8_t i = 0; i < num; i++) {
 			if (!mb->pull(byte)) {
-				state = false;
-				break;
+				EXPECT_TRUE(false) << " step " << (uint16_t) i;
+				return false;
 			}
 
-			if (byte != buf[num]) {
-				state = false;
-				break;
+			if (buf[i] != byte) {
+				EXPECT_EQ(buf[i], byte) << " step " << (uint16_t) i;
+				return false;
 			}
-
-			cnt_msg += sprintf(&msg[cnt_msg], "0x%02X ", byte);
 		}
-		cnt_msg += sprintf(&msg[cnt_msg], "\n");
 
-		return state;
+		if (mb->pull(byte)) {
+			EXPECT_FALSE(true);
+		}
+
+		if (!mb->checkState(mb->STATE_IDLE)) {
+			EXPECT_TRUE(false);
+			return false;
+		}
+
+		return true;
 	}
 
 private:
@@ -101,7 +104,7 @@ private:
 	};
 };
 
-TEST_F(ProtocolS_Test, test) {
+TEST_F(ProtocolS_Test, testRead) {
 
 	mb->setEnable();
 
@@ -109,65 +112,85 @@ TEST_F(ProtocolS_Test, test) {
 	ASSERT_EQ(0x0000, mb->getDOut(mb->D_OUTPUT_32_17));
 
 	{	// Корректное сообщение с ненулевыми командами
-		cnt_msg = sprintf(&msg[0], " <<< Error <<< \n");
-
-		uint8_t req[] = {0x55, 0xAA, 0x11, 0x04, 0xF1, 0x1F, 0xF2, 0x2F, 0x46};
-		ASSERT_TRUE(sendData(req, SIZE_ARRAY(req))) << msg;
+		uint8_t req[] = {0x55, 0xAA, 0x12, 0x04, 0xF1, 0x1F, 0xF2, 0x2F, 0x47};
+		ASSERT_TRUE(sendData(req, SIZE_ARRAY(req)));
+		ASSERT_TRUE(mb->isReadData());
+		ASSERT_TRUE(mb->readData());
 		ASSERT_EQ(0x1FF1, mb->getDOut(mb->D_OUTPUT_16_01));
 		ASSERT_EQ(0x2FF2, mb->getDOut(mb->D_OUTPUT_32_17));
 	}
 
 	{	// Корректное сообщение с ненулевыми командами
-		cnt_msg = sprintf(&msg[0], " <<< Error <<< \n");
-
-		uint8_t req[] = {0x55, 0xAA, 0x11, 0x04, 0x12, 0x34, 0x56, 0x78, 0x29};
-		ASSERT_TRUE(sendData(req, SIZE_ARRAY(req))) << msg;
+		uint8_t req[] = {0x55, 0xAA, 0x12, 0x04, 0x12, 0x34, 0x56, 0x78, 0x2A};
+		ASSERT_TRUE(sendData(req, SIZE_ARRAY(req)));
+		ASSERT_TRUE(mb->isReadData());
+		ASSERT_TRUE(mb->readData());
 		ASSERT_EQ(0x3412, mb->getDOut(mb->D_OUTPUT_16_01));
 		ASSERT_EQ(0x7856, mb->getDOut(mb->D_OUTPUT_32_17));
 	}
 
 	{	// Корректное сообщенеие с нулевыми командами
-		cnt_msg = sprintf(&msg[0], " <<< Error <<< \n");
-
-		uint8_t req[] = {0x55, 0xAA, 0x11, 0x04, 0x00, 0x00, 0x00, 0x00, 0x15};
-		ASSERT_TRUE(sendData(req, SIZE_ARRAY(req))) << msg;
+		uint8_t req[] = {0x55, 0xAA, 0x12, 0x04, 0x00, 0x00, 0x00, 0x00, 0x16};
+		ASSERT_TRUE(sendData(req, SIZE_ARRAY(req)));
+		ASSERT_TRUE(mb->isReadData());
+		ASSERT_TRUE(mb->readData());
 		ASSERT_EQ(0x0000, mb->getDOut(mb->D_OUTPUT_16_01));
 		ASSERT_EQ(0x0000, mb->getDOut(mb->D_OUTPUT_32_17));
 	}
 
-	{	// Ошибка, команда 0x12
-		cnt_msg = sprintf(&msg[0], " <<< Error <<< \n");
-
-		uint8_t req[] = {0x55, 0xAA, 0x12, 0x04, 0xF1, 0x1F, 0xF2, 0x2F, 0x47};
-		EXPECT_FALSE(sendData(req, SIZE_ARRAY(req))) << msg;
+	{	// Ошибка, корректное сообщение, но 0x11
+		uint8_t req[] = {0x55, 0xAA, 0x11, 0x04, 0xF1, 0x1F, 0xF2, 0x2F, 0x46};
+		ASSERT_TRUE(sendData(req, SIZE_ARRAY(req)));
+		ASSERT_TRUE(mb->isReadData());
+		ASSERT_FALSE(mb->readData());
 		ASSERT_EQ(0x0000, mb->getDOut(mb->D_OUTPUT_16_01));
 		ASSERT_EQ(0x0000, mb->getDOut(mb->D_OUTPUT_32_17));
 	}
 
-	{	// Ошибка, на 1 байт данных меньше.
-		cnt_msg = sprintf(&msg[0], " <<< Error <<< \n");
-
-		uint8_t req[] = {0x55, 0xAA, 0x11, 0x03, 0xF1, 0x1F, 0xF2, 0x16};
-		EXPECT_FALSE(sendData(req, SIZE_ARRAY(req))) << msg;
+	{	// Ошибка, корректное сообщение. но на 1 байт данных меньше.
+		uint8_t req[] = {0x55, 0xAA, 0x12, 0x03, 0xF1, 0x1F, 0xF2, 0x17};
+		ASSERT_TRUE(sendData(req, SIZE_ARRAY(req)));
+		ASSERT_TRUE(mb->isReadData());
+		ASSERT_FALSE(mb->readData());
 		ASSERT_EQ(0x0000, mb->getDOut(mb->D_OUTPUT_16_01));
 		ASSERT_EQ(0x0000, mb->getDOut(mb->D_OUTPUT_32_17));
 	}
 
 	{	// Корректное сообщение с ненулевыми командами
-		cnt_msg = sprintf(&msg[0], " <<< Error <<< \n");
-
-		uint8_t req[] = {0x55, 0xAA, 0x11, 0x04, 0x12, 0x34, 0x56, 0x78, 0x29};
-		ASSERT_TRUE(sendData(req, SIZE_ARRAY(req))) << msg;
+		uint8_t req[] = {0x55, 0xAA, 0x12, 0x04, 0x12, 0x34, 0x56, 0x78, 0x2A};
+		ASSERT_TRUE(sendData(req, SIZE_ARRAY(req)));
+		ASSERT_TRUE(mb->isReadData());
+		ASSERT_TRUE(mb->readData());
 		ASSERT_EQ(0x3412, mb->getDOut(mb->D_OUTPUT_16_01));
 		ASSERT_EQ(0x7856, mb->getDOut(mb->D_OUTPUT_32_17));
 	}
 
 	{
-		cnt_msg = sprintf(&msg[0], " <<< Error <<< \n");
-
-		uint8_t req[] = {0x55, 0xAA, 0x12, 0x04, 0x00, 0x00, 0x00, 0x00, 0x16};
-		EXPECT_TRUE(readData(req, SIZE_ARRAY(req))) << msg;
+		// Ошибочная контрольная сумма в сообщении.
+		uint8_t req[] = {0x55, 0xAA, 0x12, 0x04, 0x00, 0x00, 0x00, 0x00, 0x15};
+		ASSERT_TRUE(sendData(req, SIZE_ARRAY(req)));
+		ASSERT_FALSE(mb->isReadData());
+		ASSERT_FALSE(mb->readData());
+		ASSERT_EQ(0x3412, mb->getDOut(mb->D_OUTPUT_16_01));
+		ASSERT_EQ(0x7856, mb->getDOut(mb->D_OUTPUT_32_17));
 	}
-
 }
 
+TEST_F(ProtocolS_Test, testSend) {
+
+	mb->setEnable();
+
+	{
+		// Проверка начального состояния дискретных входов.
+		uint8_t req[] = {0x55, 0xAA, 0x11, 0x04, 0x00, 0x00, 0x00, 0x00, 0x15};
+		ASSERT_TRUE(readData(req, SIZE_ARRAY(req)));
+	}
+
+	{
+		// Проверка корректности установки команд.
+		uint8_t req[] = {0x55, 0xAA, 0x11, 0x04, 0x17, 0x86, 0x34, 0x59, 0x3F};
+		mb->setDInput(mb->D_INPUT_16_01, 0x8617);
+		mb->setDInput(mb->D_INPUT_32_17, 0x5934);
+		ASSERT_TRUE(readData(req, SIZE_ARRAY(req)));
+	}
+}
