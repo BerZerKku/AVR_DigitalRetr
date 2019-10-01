@@ -15,7 +15,15 @@ void TProtocolPcM::reset() {
 	for(uint8_t i = 0; i < D_OUTPUT_MAX; i++) {
 		dOut[i] = 0x0000;
 	}
+
+	cIn = 0x0000;
+	cOut = 0x0000;
 };
+
+// Чтение состояний контрльных сигналов на приеме.
+uint16_t TProtocolPcM::getCI() const {
+	return cIn;
+}
 
 // Чтение состояний дискретных входов.
 uint16_t TProtocolPcM::getDI(dInput_t din) const {
@@ -24,6 +32,11 @@ uint16_t TProtocolPcM::getDI(dInput_t din) const {
 		val = dIn[din];
 	}
 	return val;
+}
+
+// Запись состояний контрольных сигналов для передачи.
+void TProtocolPcM::setCO(uint16_t val) {
+	cOut = val;
 }
 
 // Запись состояний дискретных выходов.
@@ -45,6 +58,7 @@ void TProtocolPcM::setDO(dOutput_t dout, uint16_t val) {
  *	- ADR_HOLDING_REG_DI_32_17_OFF	Состояние дискретных входов с 32 по 17.
  *	Т.е. состояние одних и тех же дискретных входов можно считать с разных
  *	адресов.
+ *	- ADR_HOLDING_REG_CI Состояние контрольных сигналов на приеме.
  *
  *	C неиспользуемых адресов будет считано 0x0000.
  *
@@ -70,6 +84,11 @@ TProtocolModbus::CHECK_ERR TProtocolPcM::readRegister(uint16_t adr, uint16_t &va
 			val = dIn[D_INPUT_32_17];
 			break;
 
+		case ADR_HOLDING_REG_CI_ON:			// DOWN
+		case ADR_HOLDING_REG_CI_OFF:
+			val = cIn;
+			break;
+
 		case ADR_HOLDING_REG_MIN:	// DOWN
 		case ADR_HOLDING_REG_MAX:
 			break;
@@ -86,6 +105,7 @@ TProtocolModbus::CHECK_ERR TProtocolPcM::readRegister(uint16_t adr, uint16_t &va
  *	Доступные адреса для считывания:
  *	- ADR_INPUT_REG_DI_16_01 Состояние дискретных выходов с 16 по 1.
  *	- ADR_INPUT_REG_DI_32_17 Состояние дискретных выходов с 32 по 17.
+ *	- ADR_INPUT_REG_CO Состояние контрольных сигналов для передачи.
  *
  *	C неиспользуемых адресов будет считано 0x0000.
  *
@@ -110,6 +130,10 @@ TProtocolModbus::CHECK_ERR TProtocolPcM::readIRegister(uint16_t adr, uint16_t &v
 			val = dOut[D_OUTPUT_32_17];
 			break;
 
+		case ADR_INPUT_REG_CO:
+			val = cOut;
+			break;
+
 		case ADR_INPUT_REG_MIN:	// DOWN
 		case ADR_INPUT_REG_MAX:
 			break;
@@ -123,9 +147,15 @@ TProtocolModbus::CHECK_ERR TProtocolPcM::readIRegister(uint16_t adr, uint16_t &v
  * 	Проводится проверка корректности адреса. Выход за максимальный или
  *	минимальный адреса считается ошибкой.
  *
+ *	Значение ON - установить бит по маске, OFF - сбросить бит по маске.
+ *
  *	Доступные адреса для записи:
- *	- ADR_COM_16_01 Команды с 16 по 1.
- *	- ADR_COM_32_17 Команды с 32 по 17.
+ *	- ADR_HOLDING_REG_DI_16_01_ON Команды с 16 по 1, подана.
+ *	- ADR_HOLDING_REG_DI_32_17_ON Команды с 32 по 17, подана.
+ *	- ADR_HOLDING_REG_DI_16_01_OFF Команды с 16 по 1, отключение.
+ *	- ADR_HOLDING_REG_DI_32_17_OFF Команды с 32 по 17, отключение.
+ *	- ADR_HOLDING_REG_CI_ON Котрольные сигналы, подана.
+ *	- ADR_HOLDING_REG_CI_OFF Контрольные сигналы, отключение.
  *
  *	@param adr Адрес регистра.
  *	@param val Состояние регистра.
@@ -153,6 +183,14 @@ TProtocolModbus::CHECK_ERR TProtocolPcM::writeRegister(uint16_t adr, uint16_t va
 
 		case ADR_HOLDING_REG_DI_32_17_OFF:
 			dIn[D_INPUT_32_17] &= ~val;
+			break;
+
+		case ADR_HOLDING_REG_CI_ON:
+			cIn |= val;
+			break;
+
+		case ADR_HOLDING_REG_CI_OFF:
+			cIn &= ~val;
 			break;
 
 		case ADR_HOLDING_REG_MIN:	// DOWN
@@ -191,9 +229,9 @@ TProtocolModbus::CHECK_ERR TProtocolPcM::readID(char *buf, uint8_t &size) {
 		buf[cnt] = pgm_read_byte(&ID[cnt]);
 	}
 
-	// FIXME - добавить текущее состояние протокола
-		// По сути ерунда. Если протокол не в работе, то до этого этапа не дойдет.
-	buf[cnt++] = isEnable() ? 0x00 : 0xFF;
+	// \todo Добавить текущее состояние протокола
+	// По сути ерунда. Если протокол не в работе, то до этого этапа не дойдет.
+	buf[cnt++] = isEnable() ? 0xFF : 0x00;
 
 	// количество передаваемых данных
 	size = cnt;

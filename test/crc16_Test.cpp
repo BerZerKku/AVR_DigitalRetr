@@ -6,8 +6,6 @@
 #include "crc16.h"
 using namespace std;
 
-#if false
-
 class CRC16_Test: public ::testing::Test {
 public:
 	TCrc16 crc16;
@@ -43,5 +41,3 @@ TEST_F(CRC16_Test, test) {
 	ASSERT_TRUE(crc16.getLow() == 0xFF) << hex << crc16.getLow();
 	ASSERT_TRUE(crc16.getHigh() == 0xFF) << hex << crc16.getHigh();
 }
-
-#endif

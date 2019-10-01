@@ -7,7 +7,6 @@
 using namespace std;
 
 
-#if false
 // размер массива
 #define SIZE_ARRAY(arr) (sizeof(arr) / sizeof(arr[0]))
 
@@ -133,7 +132,7 @@ private:
 
 // проверка констант и начального состо€ни€
 TEST_F(ProtocolModbusTest, constants) {
-	EXPECT_EQ(4, mb->getMaxNumRegisters());
+	EXPECT_EQ(6, mb->getMaxNumRegisters());
 	EXPECT_EQ(32, mb->getMaxNumCoils());
 	EXPECT_EQ(255, mb->getAddressError());
 	EXPECT_EQ(1, mb->getAddressMin());
@@ -353,8 +352,30 @@ TEST_F(ProtocolModbusTest, push) {
 	}
 }
 
+TEST_F(ProtocolModbusTest, trResponse) {
+
+	// сообщение отправл€етс€ только в состо€нии STATE_WRITE_READY
+	uint8_t req[] = {0x01, 0x03, 0x00, 0x00, 0x00, 0x01, 0x84, 0x0A};
+	uint8_t min = TPM::STATE_OFF;
+	uint8_t max = TPM::STATE_ERROR;
+
+
+	for(uint8_t i = min; i < max; i++) {
+		readCom(req, SIZE_ARRAY(req), req[0]);
+
+
+		TPM::STATE t = static_cast<TPM::STATE> (i);
+		mb->setState(t);
+
+		if ((t == TPM::STATE_WRITE) != (mb->isSendData())) {
+			sprintf(msg, "  >>> ќшибка на шаге %d", t);
+			ASSERT_TRUE(false) << msg;
+		}
+	}
+}
+
 // проверка команд с неверной контрольной суммой
-TEST_F(ProtocolModbusTest, com_crc_error) {
+TEST_F(ProtocolModbusTest, com_crc) {
 
 	{	// корректный CRC
 		uint8_t req[] = {0x01, 0x01, 0x00, 0x00, 0x00, 0x01, 0xFD, 0xCA};
@@ -405,28 +426,6 @@ TEST_F(ProtocolModbusTest, com_crc_error) {
 		}
 
 		ASSERT_FALSE(mb->readData());
-	}
-}
-
-TEST_F(ProtocolModbusTest, trResponse) {
-
-	// сообщение отправл€етс€ только в состо€нии STATE_WRITE_READY
-	uint8_t req[] = {0x01, 0x03, 0x00, 0x00, 0x00, 0x01, 0x84, 0x0A};
-	uint8_t min = TPM::STATE_OFF;
-	uint8_t max = TPM::STATE_ERROR;
-
-
-	for(uint8_t i = min; i < max; i++) {
-		readCom(req, SIZE_ARRAY(req), req[0]);
-
-
-		TPM::STATE t = static_cast<TPM::STATE> (i);
-		mb->setState(t);
-
-		if ((t == TPM::STATE_WRITE) != (mb->isSendData())) {
-			sprintf(msg, "  >>> ќшибка на шаге %d", t);
-			ASSERT_TRUE(false) << msg;
-		}
 	}
 }
 
@@ -725,10 +724,10 @@ TEST_F(ProtocolModbusTest, com_0x03_read_holding_register) {
 		ASSERT_TRUE(checkArray(res, SIZE_ARRAY(res))) << msg;
 	}
 
-	{	// ошибка: превышение кол-ва запрашиваемых адресов 5
+	{	// ошибка: превышение кол-ва запрашиваемых адресов 7
 		// исключение EXCEPTION_03H_ILLEGAL_DATA_VAL
 		cnt_msg = sprintf(&msg[0], " <<< Error <<< \n");
-		uint8_t req[] = {0x01, 0x03, 0x00, 0x00, 0x00, 0x05};	// CRC 0x85, 0xC9
+		uint8_t req[] = {0x01, 0x03, 0x00, 0x00, 0x00, 0x07};	// CRC 0x85, 0xC9
 		uint8_t res[] = {0x01, 0x83, 0x03};
 		ASSERT_FALSE(readCom(req, SIZE_ARRAY(req), req[0])) << msg;
 		ASSERT_TRUE(checkArray(res, SIZE_ARRAY(res))) << msg;
@@ -832,10 +831,10 @@ TEST_F(ProtocolModbusTest, com_0x04_read_input_register) {
 		ASSERT_TRUE(checkArray(res, SIZE_ARRAY(res))) << msg;
 	}
 
-	{	// ошибка: превышение кол-ва запрашиваемых адресов 5
+	{	// ошибка: превышение кол-ва запрашиваемых адресов 7
 		// исключение EXCEPTION_03H_ILLEGAL_DATA_VAL
 		cnt_msg = sprintf(&msg[0], " <<< Error <<< \n");
-		uint8_t req[] = {0x01, 0x04, 0x00, 0x00, 0x00, 0x05};	// CRC 0x85, 0xC9
+		uint8_t req[] = {0x01, 0x04, 0x00, 0x00, 0x00, 0x07};	// CRC 0x85, 0xC9
 		uint8_t res[] = {0x01, 0x84, 0x03};
 		ASSERT_FALSE(readCom(req, SIZE_ARRAY(req), req[0])) << msg;
 		ASSERT_TRUE(checkArray(res, SIZE_ARRAY(res))) << msg;
@@ -1278,10 +1277,16 @@ TEST_F(ProtocolModbusTest, com_0x10_write_multiplie_registers) {
 		ASSERT_TRUE(checkArray(res, SIZE_ARRAY(res))) << msg;
 	}
 
-	{	// проверка записи максимального кол-ва регистров, 4
+	{	// проверка записи максимального кол-ва регистров, 7
 		cnt_msg = sprintf(&msg[0], " <<< Error <<< \n");
-		uint8_t req[] =  {0x11, 0x10, 0x00, 0x01, 0x00, 0x05, 0x0A,
-				0x15, 0x0F, 0x14, 0x88, 0x15, 0x0F, 0x14, 0x88, 0x15, 0x0F};
+		uint8_t req[] =  {
+				0x11, 0x10, // адрсе + код команды
+				0x00, 0x01, // адрес первого регистра
+				0x00, 0x07, // количество регистров
+				0x0E, 		// количество байт данных
+				0x15, 0x0F, 0x14, 0x88, 0x15, 0x0F, 0x14, 0x88,
+			    0x15, 0x0F, 0x14, 0x88, 0x15, 0x0F
+		};
 		uint8_t res[] = {0x11, 0x90, 0x03};
 		ASSERT_FALSE(readCom(req, SIZE_ARRAY(req), req[0])) << msg;
 		ASSERT_TRUE(checkArray(res, SIZE_ARRAY(res))) << msg;
@@ -1296,5 +1301,3 @@ TEST_F(ProtocolModbusTest, com_0x11_slave_ID) {
 	ASSERT_TRUE(readCom(req, SIZE_ARRAY(req), req[0])) << msg;
 	ASSERT_TRUE(checkArray(res, SIZE_ARRAY(res))) << msg;
 }
-
-#endif

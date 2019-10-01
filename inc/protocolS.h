@@ -24,7 +24,7 @@
 /// Позиция количества байт данных в посылке протокола.
 #define NUM (3)
 
-/// Позиция указанного байта данных в посылке протокола.
+/// Позиция указанного байта данных в посылке протокола начиная с 0.
 #define BYTE(n) (n + 4)
 
 #ifndef TEST_FRIENDS
@@ -43,12 +43,12 @@
  *
  * 	--- Glossary ----
  *
+ *	ADU - application data unit - элемент данных приложения.
  * 	PDU - protocol data unit - элемент данных протокола.
- * 	ADU - application data unit - элемент данных приложения.
  *
  *	--- Frame description ---
  *
- * 	ADU:
+ * 	Frame:
  * 	- preambule, 2 bytes:
  * 		- 0x55, sync character 1
  * 		- 0xAA, sync character 2
@@ -64,7 +64,7 @@ class ProtocolS {
 	TEST_FRIENDS;
 
 	/// Maximum rx/tx buffer size.
-	static const uint8_t BUF_SIZE_MAX = 10;
+	static const uint8_t BUF_SIZE_MAX = 12;
 
 	/// Minimum ADU size.
 	static const uint8_t MIN_SIZE_ADU = 5;
@@ -107,13 +107,11 @@ public:
 		D_OUTPUT_MAX		///< Количество элементов в списке.
 	};
 
-
 	/// Конструктор.
 	ProtocolS();
 
 	/// Деструктор.
 	~ProtocolS() {};
-
 
 	/**	Обработка принятых данных.
 	 *
@@ -174,6 +172,12 @@ public:
 	///	Остановка работы протокола.
 	void setDisable() { state = STATE_OFF; }
 
+	/**	Чтение контрольных сигналов для передачи.
+	 *
+	 * 	@return Текущее состояние контрольных сигналов для передачи.
+	 */
+	uint8_t getCOut() const;
+
 	/**	Чтение состояний дискретных выходов.
 	 *
 	 * 	@param[in] dout Дискрентные выходы.
@@ -182,6 +186,12 @@ public:
 	 *
 	 */
 	uint16_t getDOut(dOutput_t dout) const;
+
+	/**	Запись контрольных сигналов на приеме.
+	 *
+	 * 	@param[in] Контрольные сигналы на приеме.
+	 */
+	void setCInput(uint8_t val);
 
 	/**	Запись состояний дискретных входов.
 	 *
@@ -200,6 +210,12 @@ private:
 
 	/// Дискретные выходы (клеммники пприемника).
 	uint16_t dOut[D_OUTPUT_MAX];
+
+	/// Контрольные сигналы для передачи.
+	uint8_t cOut;
+
+	/// Контрольные сигналы на приеме.
+	uint8_t cIn;
 
 	/// Счетчик количества байт в буфере.
 	uint8_t cnt;

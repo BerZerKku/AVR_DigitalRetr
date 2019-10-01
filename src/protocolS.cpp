@@ -24,6 +24,9 @@ ProtocolS::ProtocolS() {
 	for(uint8_t i = 0; i < D_OUTPUT_MAX; i++) {
 		dOut[i] = 0x00;
 	}
+
+	cIn = 0;
+	cOut = 0;
 }
 
 // Обработка принятых данных.
@@ -31,12 +34,15 @@ bool ProtocolS::readData() {
 	bool error = true;
 
 	if (state == STATE_READ_OK) {
-		if ((buf[COM] == COM_FROM_BSP) && (buf[NUM] == 4)) {
-			dOut[D_OUTPUT_16_01] = *((uint16_t *) &buf[BYTE(0)]);
-			dOut[D_OUTPUT_32_17] = *((uint16_t *) &buf[BYTE(2)]);
-
-			error = false;
+		if (buf[COM] == COM_FROM_BSP) {
+			if (buf[NUM] == 5) {
+				dOut[D_OUTPUT_16_01] = *((uint16_t *) &buf[BYTE(0)]);
+				dOut[D_OUTPUT_32_17] = *((uint16_t *) &buf[BYTE(2)]);
+				cOut = buf[BYTE(4)];
+				error = false;
+			}
 		}
+
 		setIdle();
 	}
 
@@ -50,9 +56,10 @@ bool ProtocolS::sendData() {
 	if (state == STATE_IDLE) {
 
 		buf[COM] = COM_TO_BSP;
-		buf[NUM] = 4;
+		buf[NUM] = 5;
 		*((uint16_t *) &buf[BYTE(0)]) = dIn[D_INPUT_16_01];
 		*((uint16_t *) &buf[BYTE(2)]) = dIn[D_INPUT_32_17];
+		buf[BYTE(4)] = cIn;
 
 		nTx = buf[NUM];
 		error = false;
@@ -132,6 +139,11 @@ void ProtocolS::push(uint8_t byte, bool err) {
 	this->cnt = cnt;
 }
 
+// Чтение контрольных сигналов для передачи.
+uint8_t ProtocolS::getCOut() const {
+	return cOut;
+}
+
 // Чтение состояний дискретных выходов.
 uint16_t ProtocolS::getDOut(dOutput_t dout) const {
 	uint16_t val = 0;
@@ -139,6 +151,11 @@ uint16_t ProtocolS::getDOut(dOutput_t dout) const {
 		val = dOut[dout];
 	}
 	return val;
+}
+
+// Запись контрольных сигналов на приеме.
+void ProtocolS::setCInput(uint8_t val) {
+	cIn = val;
 }
 
 //	Запись состояний дискретных входов.
