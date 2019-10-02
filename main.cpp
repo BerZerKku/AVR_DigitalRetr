@@ -83,9 +83,16 @@ static inline void disableDrIO();
 
 //---ПЕРЕМЕННЫЕ-----------------------------------------------------------------
 
-TProtocolPcM drModbus;	///< Класс работы с ЦПП Modbus
+/// Класс работы с ЦПП Modbus
+TProtocolPcM drModbus;
+/// Класс рабоыт с БСП.
 ProtocolS bspS;
-volatile static uint8_t num_1ms = 0;
+/// счетчик интервалов времени (срабатывает раз в 900мс)
+volatile static uint8_t tick = 0;
+/// Количество циклов до сброса протокола работы с БСП.
+static const uint8_t numTicksToResetProtocolS = 10;
+/// Максимальное количество циклов без полученных сообщений.
+static const uint8_t numTicksWithoutFrames = 20;
 
 //---ОПРЕДЕЛЕНИЯ ФУНКЦИЙ--------------------------------------------------------
 
@@ -118,6 +125,10 @@ __attribute__ ((OS_main)) int main(void) {
 	uint16_t cout = 0;
 	uint16_t cin = 0;
 
+	uint16_t tickToLossOfConnectionBSP = 0;
+	uint16_t tickToLossOfConnectionModbus = 0;
+	uint16_t tickToResetProtocolS = 0;
+
 	enableDrIO();
 	drModbus.setTick(115200, 150);
 	drModbus.setAddressLan(1);
@@ -129,40 +140,61 @@ __attribute__ ((OS_main)) int main(void) {
 
 	while(1) {
 
-		if (num_1ms >= 10) {
-			bspS.setIdle();
-			num_1ms = 0;
+		if (tick) {
+			if (tickToLossOfConnectionBSP < (numTicksWithoutFrames - 1)) {
+				tickToLossOfConnectionBSP++;
+			} else {
+				drModbus.setDO(drModbus.D_OUTPUT_16_01, 0x0000);
+				drModbus.setDO(drModbus.D_OUTPUT_32_17, 0x0000);
+				drModbus.setCO(0x0000);
+				PORTA &= ~(1 << LED_VD19);
+			}
+
+			if (tickToLossOfConnectionModbus < (numTicksWithoutFrames - 1)) {
+				tickToLossOfConnectionModbus++;
+			} else {
+				bspS.setDInput(bspS.D_INPUT_16_01, 0x0000);
+				bspS.setDInput(bspS.D_INPUT_32_17, 0x0000);
+				bspS.setCInput(0x0000);
+				PORTA &= ~(1 << LED_VD20);
+			}
+
+			if (tickToResetProtocolS < (numTicksToResetProtocolS - 1)) {
+				tickToResetProtocolS++;
+			} else {
+				tickToResetProtocolS = 0;
+				bspS.setIdle();
+			}
+
+			tick = 0;
+		}
+
+		if (bspS.sendData()) {
+			if (bspS.isSendData()) {
+				uint8_t byte;
+				if (bspS.pull(byte)) {
+					UCSR0B &= ~(1 << RXCIE0);
+					UDR0 = byte;
+					UCSR0B |= (1 << UDRIE0) | (1 << TXCIE0);
+				}
+				tickToResetProtocolS = 0;
+			}
 		}
 
 		if (bspS.isReadData()) {
+			if (bspS.readData()) {
+				dout = bspS.getDOut(bspS.D_OUTPUT_16_01);
+				drModbus.setDO(drModbus.D_OUTPUT_16_01, dout);
 
-			bspS.readData();
+				dout = bspS.getDOut(bspS.D_OUTPUT_32_17);
+				drModbus.setDO(drModbus.D_OUTPUT_32_17, dout);
 
-			dout = bspS.getDOut(bspS.D_OUTPUT_16_01);
-			drModbus.setDO(drModbus.D_OUTPUT_16_01, dout);
+				cout = bspS.getCOut();
+				drModbus.setCO(cout);
 
-			dout = bspS.getDOut(bspS.D_OUTPUT_32_17);
-			drModbus.setDO(drModbus.D_OUTPUT_32_17, dout);
+				tickToLossOfConnectionBSP = 0;
 
-			cout = bspS.getCOut();
-			drModbus.setCO(cout);
-
-
-			PINA = (1 << LED_VD20);
-			num_1ms = 3;
-		}
-
-		if (num_1ms > 2) {
-			if (bspS.sendData()) {
-				if (bspS.isSendData()) {
-					uint8_t byte;
-					if (bspS.pull(byte)) {
-						PINA = (1 << LED_VD19);
-						UCSR0B &= ~(1 << RXCIE0);
-						UDR0 = byte;
-						UCSR0B |= (1 << UDRIE0) | (1 << TXCIE0);
-					}
-				}
+				PINA = (1 << LED_VD19);
 			}
 		}
 
@@ -178,6 +210,10 @@ __attribute__ ((OS_main)) int main(void) {
 
 				cin = drModbus.getCI();
 				bspS.setCInput(cin);
+
+				tickToLossOfConnectionModbus = 0;
+
+				PINA = (1 << LED_VD20);
 			}
 
 			if (drModbus.isSendData()) {
@@ -205,9 +241,7 @@ ISR(TIMER1_COMPA_vect) {
 	static uint8_t cnt = 0;
 
 	if (++cnt > 6) {
-		if (num_1ms < 10) {
-			num_1ms++;
-		}
+		tick = 1;
 		cnt = 0;
 	}
 
@@ -222,10 +256,8 @@ ISR(USART0_RX_vect) {
 	uint8_t status = UCSR0A;	// региcтр состояния
 	uint8_t byte = UDR0;		// регистр данных
 
-
 	// Обработка данных принятого байта
 	bspS.push(byte, status & ((1 << FE0) | (1 << DOR0) | (1 << UPE0)));
-	num_1ms = 0;
 }
 
 /**
@@ -235,7 +267,6 @@ ISR(USART0_UDRE_vect) {
 	uint8_t byte = 0;
 	if (bspS.pull(byte)) {
 		UDR0 = byte;
-		num_1ms = 0;
 	} else {
 		UCSR0B &= ~(1 << UDRIE0);
 	}
@@ -247,8 +278,6 @@ ISR(USART0_UDRE_vect) {
 ISR(USART0_TX_vect) {
 	UCSR0B  &= ~(1 << TXCIE0);
 	UCSR0B  |= (1 << RXCIE0);
-
-	bspS.setIdle();
 }
 
 
@@ -265,7 +294,6 @@ ISR(USART1_RX_vect) {
 	if (status & ((1 << FE1) | (1 << DOR1) | (1 << UPE1))) {
 		drModbus.setReadState();
 	} else {
-
 		drModbus.push(byte);
 	}
 }
@@ -312,14 +340,14 @@ void low_level_init() {
 
 	// порт C
 	// телемеханика
-	DDRC = (1 << TM_TX) | (0 << TM_RX);
-	PORTC = 0x00;
+	DDRC  = (1 << TM_TX) | (0 << TM_RX);
+	PORTC = (1 << TM_TX) | (1 << TM_RX);
 
 	// PORTD
 	// ЦПП + связь с БСП
-	DDRD = (1 << DR_TX) | (1 << DR_EN) | (0 << DR_RX);
+	DDRD  = (1 << DR_TX)  | (1 << DR_EN) | (0 << DR_RX);
 	DDRD |= (1 << BSP_TX) | (0 << BSP_RX);
-	PORTD = 0;
+	PORTD = (1 << BSP_TX) | (1 << BSP_RX);
 
 	// UART0
 	// связь с БСП

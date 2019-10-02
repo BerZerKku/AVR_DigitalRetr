@@ -353,6 +353,20 @@ TEST_F(ProtocolPcM_Test, input) {
 		ASSERT_TRUE(checkArray(res, SIZE_ARRAY(res))) << msg;
 	}
 
+	{	// проверка считывания всех адресов сразу
+		cnt_msg = sprintf(&msg[0], " <<< Error <<< \n");
+		uint8_t req[] = {0x01, 0x03, 0x00, 0x00, 0x00, 0x06};	// CRC 0x44 0x09
+		uint8_t res[] = {
+				0x01, 0x03,	// адрес + команда
+				0x0C,		// количество байт данных
+				0x04, 0x00, 0xC0, 0x20, 0x04, 0x00, 0xC0, 0x20,
+				0x00, 0x20, 0x00, 0x20
+		};
+
+		ASSERT_TRUE(readCom(req, SIZE_ARRAY(req), req[0])) << msg;
+		ASSERT_TRUE(checkArray(res, SIZE_ARRAY(res))) << msg;
+	}
+
 	{	// проверка сброса
 		cnt_msg = sprintf(&msg[0], " <<< Error <<< \n");
 		mb->reset();
@@ -373,7 +387,7 @@ TEST_F(ProtocolPcM_Test, input) {
 }
 
 // проверка команды работы с дискретными выходами
-TEST_F(ProtocolPcM_Test, discreteOutput) {
+TEST_F(ProtocolPcM_Test, output) {
 
 	{	// проверка адресов дискретных выходов
 		cnt_msg = sprintf(&msg[0], " <<< Error <<< \n");
@@ -381,10 +395,10 @@ TEST_F(ProtocolPcM_Test, discreteOutput) {
 		ASSERT_TRUE(mb->D_OUTPUT_32_17 == 1) << msg;
 	}
 
-	{	// проверка начального состояния дискретных выходов c 32 по 1
+	{	// проверка начального состояния
 		cnt_msg = sprintf(&msg[0], " <<< Error <<< \n");
-		uint8_t req[] = {0x01, 0x04, 0x00, 0x00, 0x00, 0x02};	// CRC 0x31, 0xCA
-		uint8_t res[] = {0x01, 0x04, 0x04, 0x00, 0x00, 0x00, 0x00};
+		uint8_t req[] = {0x01, 0x04, 0x00, 0x00, 0x00, 0x03};	// CRC 0xB0, 0x0B
+		uint8_t res[] = {0x01, 0x04, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 		ASSERT_TRUE(readCom(req, SIZE_ARRAY(req), req[0])) << msg;
 		ASSERT_TRUE(checkArray(res, SIZE_ARRAY(res))) << msg;
 	}
@@ -409,65 +423,125 @@ TEST_F(ProtocolPcM_Test, discreteOutput) {
 		ASSERT_TRUE(checkArray(res, SIZE_ARRAY(res))) << msg;
 	}
 
+	{	//проверка установки контрольных частот
+		cnt_msg = sprintf(&msg[0], " <<< Error <<< \n");
+		mb->setCO(0x4312);
+
+		uint8_t req[] = {0x01, 0x04, 0x00, 0x00, 0x00, 0x03};	// CRC 0xB0, 0x0B
+		uint8_t res[] = {0x01, 0x04, 0x06, 0x37, 0x82, 0x64, 0x95, 0x43, 0x12};
+		ASSERT_TRUE(readCom(req, SIZE_ARRAY(req), req[0])) << msg;
+		ASSERT_TRUE(checkArray(res, SIZE_ARRAY(res))) << msg;
+	}
+
+	{	// Проверка считывания одного регистра с командама с 16 по 1
+		cnt_msg = sprintf(&msg[0], " <<< Error <<< \n");
+
+		uint8_t req[] = {0x01, 0x04, 0x00, 0x00, 0x00, 0x01};	// CRC 0x31, 0xCA
+		uint8_t res[] = {0x01, 0x04, 0x02, 0x37, 0x82};
+		ASSERT_TRUE(readCom(req, SIZE_ARRAY(req), req[0])) << msg;
+		ASSERT_TRUE(checkArray(res, SIZE_ARRAY(res))) << msg;
+	}
+
+	{	// Проверка считывания одного регистра с командама с 32 по 17
+		cnt_msg = sprintf(&msg[0], " <<< Error <<< \n");
+
+		uint8_t req[] = {0x01, 0x04, 0x00, 0x01, 0x00, 0x01};	// CRC 0x60, 0x0A
+		uint8_t res[] = {0x01, 0x04, 0x02, 0x64, 0x95};
+		ASSERT_TRUE(readCom(req, SIZE_ARRAY(req), req[0])) << msg;
+		ASSERT_TRUE(checkArray(res, SIZE_ARRAY(res))) << msg;
+	}
+
+	{	// Проверка считывания одного регистра с контрольными частотами
+		cnt_msg = sprintf(&msg[0], " <<< Error <<< \n");
+
+		uint8_t req[] = {0x01, 0x04, 0x00, 0x02, 0x00, 0x01};	// CRC 0x90, 0x0A
+		uint8_t res[] = {0x01, 0x04, 0x02, 0x43, 0x12};
+		ASSERT_TRUE(readCom(req, SIZE_ARRAY(req), req[0])) << msg;
+		ASSERT_TRUE(checkArray(res, SIZE_ARRAY(res))) << msg;
+	}
+
 	{	// проверка сброса
 		mb->reset();
 
-		uint8_t req[] = {0x01, 0x04, 0x00, 0x00, 0x00, 0x02};	// CRC 0x31, 0xCA
-		uint8_t res[] = {0x01, 0x04, 0x04, 0x00, 0x00, 0x00, 0x00};
+		uint8_t req[] = {0x01, 0x04, 0x00, 0x00, 0x00, 0x03};	// CRC 0xB0, 0x0B
+		uint8_t res[] = {0x01, 0x04, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 		ASSERT_TRUE(readCom(req, SIZE_ARRAY(req), req[0])) << msg;
 		ASSERT_TRUE(checkArray(res, SIZE_ARRAY(res))) << msg;
 	}
 }
 
-// проверка взаимного влияния дискретных входов и выхода
-TEST_F(ProtocolPcM_Test, discreteIO) {
+// проверка взаимного влияния регисторв
+TEST_F(ProtocolPcM_Test, io) {
 
 	{	// установка дискретных выходов
 		cnt_msg = sprintf(&msg[0], " <<< Error <<< \n");
 		mb->setDO(mb->D_OUTPUT_16_01, 0x3782);
 		mb->setDO(mb->D_OUTPUT_32_17, 0x8916);
+		mb->setCO(0x4312);
 
-		uint8_t req[] = {0x01, 0x04, 0x00, 0x00, 0x00, 0x02};
-		uint8_t res[] = {0x01, 0x04, 0x04, 0x37, 0x82, 0x89, 0x16};
+		uint8_t req[] = {0x01, 0x04, 0x00, 0x00, 0x00, 0x03};
+		uint8_t res[] = {0x01, 0x04, 0x06, 0x37, 0x82, 0x89, 0x16, 0x43, 0x12};
 		ASSERT_TRUE(readCom(req, SIZE_ARRAY(req), req[0])) << msg;
 		ASSERT_TRUE(checkArray(res, SIZE_ARRAY(res))) << msg;
 	}
 
 	{	// проверка состояния дискретных входов
 		cnt_msg = sprintf(&msg[0], " <<< Error <<< \n");
-		uint8_t req[] = {0x01, 0x03, 0x00, 0x00, 0x00, 0x02};
-		uint8_t res[] = {0x01, 0x03, 0x04, 0x00, 0x00, 0x00, 0x00};
+		uint8_t req[] = {0x01, 0x03, 0x00, 0x00, 0x00, 0x06};
+		uint8_t res[] = {
+				0x01, 0x03,
+				0x0C,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00
+		};
 		ASSERT_TRUE(readCom(req, SIZE_ARRAY(req), req[0])) << msg;
 		ASSERT_TRUE(checkArray(res, SIZE_ARRAY(res))) << msg;
 		ASSERT_EQ(0x0000, mb->getDI(mb->D_INPUT_16_01));
 		ASSERT_EQ(0x0000, mb->getDI(mb->D_INPUT_32_17));
+		ASSERT_EQ(0x0000, mb->getCI());
 	}
 
 	{	// установка дискретных входов
 		cnt_msg = sprintf(&msg[0], " <<< Error <<< \n");
 		uint8_t req[] = {0x01, 0x10, 0x00, 0x00, 0x00, 0x02, 0x04, 0xA5, 0x97, 0x48, 0x84};
 		uint8_t res[] = {0x01, 0x10, 0x00, 0x00, 0x00, 0x02};
+
 		ASSERT_TRUE(readCom(req, SIZE_ARRAY(req), req[0])) << msg;
 		ASSERT_TRUE(checkArray(res, SIZE_ARRAY(res))) << msg;
 		ASSERT_EQ(0xA597, mb->getDI(mb->D_INPUT_16_01));
 		ASSERT_EQ(0x4884, mb->getDI(mb->D_INPUT_32_17));
+		ASSERT_EQ(0x0000, mb->getCI());
 	}
 
-	{	// проверка дискретных выходов
+	{	// установка контрольной частоты на приеме
 		cnt_msg = sprintf(&msg[0], " <<< Error <<< \n");
-		uint8_t req[] = {0x01, 0x04, 0x00, 0x00, 0x00, 0x02};
-		uint8_t res[] = {0x01, 0x04, 0x04, 0x37, 0x82, 0x89, 0x16};
+		uint8_t req[] = {0x01, 0x10, 0x00, 0x04, 0x00, 0x01, 0x02, 0x17, 0x19};
+		uint8_t res[] = {0x01, 0x10, 0x00, 0x04, 0x00, 0x01};
+
+		ASSERT_TRUE(readCom(req, SIZE_ARRAY(req), req[0])) << msg;
+		ASSERT_TRUE(checkArray(res, SIZE_ARRAY(res))) << msg;
+		ASSERT_EQ(0xA597, mb->getDI(mb->D_INPUT_16_01));
+		ASSERT_EQ(0x4884, mb->getDI(mb->D_INPUT_32_17));
+		ASSERT_EQ(0x1719, mb->getCI());
+
+	}
+
+	{	// проверка дискретных выходов и контрольной частоты на передаче
+		cnt_msg = sprintf(&msg[0], " <<< Error <<< \n");
+		uint8_t req[] = {0x01, 0x04, 0x00, 0x00, 0x00, 0x03};
+		uint8_t res[] = {0x01, 0x04, 0x06, 0x37, 0x82, 0x89, 0x16, 0x43, 0x12};
 		ASSERT_TRUE(readCom(req, SIZE_ARRAY(req), req[0])) << msg;
 		ASSERT_TRUE(checkArray(res, SIZE_ARRAY(res))) << msg;
 	}
 
-	{	// установка дискретных выходов
+	{	// установка дискретных выходов и контрольных сигналов на передачу
 		cnt_msg = sprintf(&msg[0], " <<< Error <<< \n");
 		mb->setDO(mb->D_OUTPUT_16_01, 0x1234);
 		mb->setDO(mb->D_OUTPUT_32_17, 0x5678);
+		mb->setCO(0x9152);
 
-		uint8_t req[] = {0x01, 0x04, 0x00, 0x00, 0x00, 0x02};
-		uint8_t res[] = {0x01, 0x04, 0x04, 0x12, 0x34, 0x56, 0x78};
+		uint8_t req[] = {0x01, 0x04, 0x00, 0x00, 0x00, 0x03};
+		uint8_t res[] = {0x01, 0x04, 0x06, 0x12, 0x34, 0x56, 0x78, 0x91, 0x52};
 		ASSERT_TRUE(readCom(req, SIZE_ARRAY(req), req[0])) << msg;
 		ASSERT_TRUE(checkArray(res, SIZE_ARRAY(res))) << msg;
 	}
@@ -476,10 +550,24 @@ TEST_F(ProtocolPcM_Test, discreteIO) {
 		cnt_msg = sprintf(&msg[0], " <<< Error <<< \n");
 		uint8_t req[] = {0x01, 0x03, 0x00, 0x00, 0x00, 0x02};
 		uint8_t res[] = {0x01, 0x03, 0x04, 0xA5, 0x97, 0x48, 0x84};
+
 		ASSERT_TRUE(readCom(req, SIZE_ARRAY(req), req[0])) << msg;
 		ASSERT_TRUE(checkArray(res, SIZE_ARRAY(res))) << msg;
 		ASSERT_EQ(0xA597, mb->getDI(mb->D_INPUT_16_01));
 		ASSERT_EQ(0x4884, mb->getDI(mb->D_INPUT_32_17));
+
+	}
+
+	{	// проверка состояния контрольной частоты на приеме
+		cnt_msg = sprintf(&msg[0], " <<< Error <<< \n");
+		uint8_t req[] = {0x01, 0x03, 0x00, 0x04, 0x00, 0x02};
+		uint8_t res[] = {0x01, 0x03, 0x04, 0x17, 0x19, 0x17, 0x19};
+
+		ASSERT_TRUE(readCom(req, SIZE_ARRAY(req), req[0])) << msg;
+		ASSERT_TRUE(checkArray(res, SIZE_ARRAY(res))) << msg;
+		ASSERT_EQ(0xA597, mb->getDI(mb->D_INPUT_16_01));
+		ASSERT_EQ(0x4884, mb->getDI(mb->D_INPUT_32_17));
+		ASSERT_EQ(0x1719, mb->getCI());
 	}
 
 	{	// сброс дискретных входов
@@ -490,6 +578,7 @@ TEST_F(ProtocolPcM_Test, discreteIO) {
 		ASSERT_TRUE(checkArray(res, SIZE_ARRAY(res))) << msg;
 		ASSERT_EQ(0x0486, mb->getDI(mb->D_INPUT_16_01));
 		ASSERT_EQ(0x4080, mb->getDI(mb->D_INPUT_32_17));
+		ASSERT_EQ(0x1719, mb->getCI());
 	}
 
 	{	// проверка дискретных выходов
@@ -498,5 +587,16 @@ TEST_F(ProtocolPcM_Test, discreteIO) {
 		uint8_t res[] = {0x01, 0x04, 0x04, 0x12, 0x34, 0x56, 0x78};
 		ASSERT_TRUE(readCom(req, SIZE_ARRAY(req), req[0])) << msg;
 		ASSERT_TRUE(checkArray(res, SIZE_ARRAY(res))) << msg;
+	}
+
+	{ 	// сброс контрольных сигналов на приеме
+		cnt_msg = sprintf(&msg[0], " <<< Error <<< \n");
+		uint8_t req[] = {0x01, 0x10, 0x00, 0x05, 0x00, 0x01, 0x02, 0x14, 0x01};
+		uint8_t res[] = {0x01, 0x10, 0x00, 0x05, 0x00, 0x01};
+		ASSERT_TRUE(readCom(req, SIZE_ARRAY(req), req[0])) << msg;
+		ASSERT_TRUE(checkArray(res, SIZE_ARRAY(res))) << msg;
+		ASSERT_EQ(0x0486, mb->getDI(mb->D_INPUT_16_01));
+		ASSERT_EQ(0x4080, mb->getDI(mb->D_INPUT_32_17));
+		ASSERT_EQ(0x0318, mb->getCI());
 	}
 }

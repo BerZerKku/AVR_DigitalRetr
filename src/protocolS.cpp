@@ -35,10 +35,13 @@ bool ProtocolS::readData() {
 
 	if (state == STATE_READ_OK) {
 		if (buf[COM] == COM_FROM_BSP) {
-			if (buf[NUM] == 5) {
+			// TODO Исправить >=4 на 5, после доработки ПО БСП.
+			if (buf[NUM] >= 4) {
 				dOut[D_OUTPUT_16_01] = *((uint16_t *) &buf[BYTE(0)]);
 				dOut[D_OUTPUT_32_17] = *((uint16_t *) &buf[BYTE(2)]);
-				cOut = buf[BYTE(4)];
+				if (buf[NUM] == 5) {
+					cOut = buf[BYTE(4)];
+				}
 				error = false;
 			}
 		}
@@ -54,7 +57,6 @@ bool ProtocolS::sendData() {
 	bool error = true;
 
 	if (state == STATE_IDLE) {
-
 		buf[COM] = COM_TO_BSP;
 		buf[NUM] = 5;
 		*((uint16_t *) &buf[BYTE(0)]) = dIn[D_INPUT_16_01];
@@ -94,15 +96,20 @@ bool ProtocolS::isSendData() {
 void ProtocolS::push(uint8_t byte, bool err) {
 	uint8_t cnt = this->cnt;
 
-	if ((state != STATE_IDLE) && (state != STATE_READ)) {
+	if (state != STATE_READ) {
 		return;
 	}
 
-	if (state == STATE_IDLE) {
+//	if (state == STATE_IDLE) {
+//		cnt = 0;
+//		if ((byte = 0x55) &&  !err) {
+//			state = STATE_READ;
+//		}
+//	}
+
+	if (err) {
 		cnt = 0;
-		if ((byte = 0x55) &&  !err) {
-			state = STATE_READ;
-		}
+		return;
 	}
 
 	if (state == STATE_READ) {
@@ -113,7 +120,7 @@ void ProtocolS::push(uint8_t byte, bool err) {
 				if (byte == PREAMBLE_CHAR_1) {
 					cnt++;
 				} else {
-					state = STATE_IDLE;
+					cnt = 0;
 				}
 			} break;
 
@@ -121,7 +128,7 @@ void ProtocolS::push(uint8_t byte, bool err) {
 				if (byte == PREAMBLE_CHAR_2) {
 					cnt++;
 				} else {
-					state = STATE_IDLE;
+					cnt = 0;
 				}
 			} break;
 
@@ -168,17 +175,19 @@ void ProtocolS::setDInput(dInput_t din, uint16_t val) {
 
 // Передача байта данных.
 bool ProtocolS::pull(uint8_t &byte) {
+	bool tr = false;
 
 	if (state == STATE_WRITE) {
 		if (nTx > 0) {
 			nTx--;
 			byte = buf[cnt++];
+			tr = true;
 		} else {
-			state = STATE_IDLE;
+			setRead();
 		}
 	}
 
-	return (state == STATE_WRITE);
+	return tr;
 }
 
 //	Запуск работы протокола.
@@ -219,6 +228,15 @@ void ProtocolS::setIdle() {
 		cnt = 0;
 		nTx= 0;
 		state = STATE_IDLE;
+	}
+}
+
+// Установить состояние чтения.
+void ProtocolS::setRead() {
+	if (state != STATE_OFF) {
+		cnt = 0;
+		nTx= 0;
+		state = STATE_READ;
 	}
 }
 

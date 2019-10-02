@@ -31,6 +31,7 @@ public:
 	virtual ~ProtocolS_Test() {};
 
 	bool sendData(uint8_t buf[], uint8_t num) {
+		mb->setRead();
 		for(uint8_t i = 0; i < num; i++) {
 			if (mb->isReadData()) {
 				EXPECT_FALSE(true) << "step " << (uint16_t) i << endl;
