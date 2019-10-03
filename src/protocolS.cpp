@@ -35,13 +35,10 @@ bool ProtocolS::readData() {
 
 	if (state == STATE_READ_OK) {
 		if (buf[COM] == COM_FROM_BSP) {
-			// TODO Исправить >=4 на 5, после доработки ПО БСП.
-			if (buf[NUM] >= 4) {
+			if (buf[NUM] == 5) {
 				dOut[D_OUTPUT_16_01] = *((uint16_t *) &buf[BYTE(0)]);
 				dOut[D_OUTPUT_32_17] = *((uint16_t *) &buf[BYTE(2)]);
-				if (buf[NUM] == 5) {
-					cOut = buf[BYTE(4)];
-				}
+				cOut = buf[BYTE(4)];
 				error = false;
 			}
 		}

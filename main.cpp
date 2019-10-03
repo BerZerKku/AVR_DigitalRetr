@@ -92,7 +92,7 @@ volatile static uint8_t tick = 0;
 /// Количество циклов до сброса протокола работы с БСП.
 static const uint8_t numTicksToResetProtocolS = 10;
 /// Максимальное количество циклов без полученных сообщений.
-static const uint8_t numTicksWithoutFrames = 20;
+static const uint8_t numTicksWithoutFrames = 50;
 
 //---ОПРЕДЕЛЕНИЯ ФУНКЦИЙ--------------------------------------------------------
 

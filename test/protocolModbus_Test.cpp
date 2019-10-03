@@ -21,6 +21,7 @@ public:
 	// конструктор
 	ProtocolModbusTest() {
 		cnt_msg = 0;
+		mb = nullptr;
 	};
 
 	// деструктор

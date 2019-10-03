@@ -85,7 +85,7 @@ public:
 			EXPECT_FALSE(true);
 		}
 
-		if (!mb->checkState(mb->STATE_IDLE)) {
+		if (!mb->checkState(mb->STATE_READ)) {
 			EXPECT_TRUE(false);
 			return false;
 		}
