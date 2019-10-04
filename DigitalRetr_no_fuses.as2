@@ -1,5 +1,5 @@
 [Files]
-Flash=D:\Project\Programm\MCU\AtmelAvrGcc\DigitalRetr\Release\DigitalRetr.hex
+Flash=D:\Workspace\mcu\avr-gcc\DigitalRetr\Release\DigitalRetr.hex
 Eeprom=[Unspecified]
 FlashInvert=0
 [Settings]

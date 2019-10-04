@@ -8,6 +8,7 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <avr/wdt.h>
+#include <avr/delay.h>
 #include "protocolPcM.h"
 #include "protocolS.h"
 
@@ -172,6 +173,7 @@ __attribute__ ((OS_main)) int main(void) {
 		if (bspS.sendData()) {
 			if (bspS.isSendData()) {
 				uint8_t byte;
+
 				if (bspS.pull(byte)) {
 					UCSR0B &= ~(1 << RXCIE0);
 					UDR0 = byte;
@@ -179,6 +181,7 @@ __attribute__ ((OS_main)) int main(void) {
 				}
 				tickToResetProtocolS = 0;
 			}
+
 		}
 
 		if (bspS.isReadData()) {
@@ -194,14 +197,16 @@ __attribute__ ((OS_main)) int main(void) {
 
 				tickToLossOfConnectionBSP = 0;
 
-				PINA = (1 << LED_VD19);
+				PORTA |= (1 << LED_VD19);
 			}
+
 		}
 
-		if (drModbus.isReadData()) {
-			PORTA |= (1 << TP4);
-			if (drModbus.readData()) {
 
+
+		if (drModbus.isReadData()) {
+
+			if (drModbus.readData()) {
 				din = drModbus.getDI(drModbus.D_INPUT_16_01);
 				bspS.setDInput(bspS.D_INPUT_16_01, din);
 
@@ -213,17 +218,20 @@ __attribute__ ((OS_main)) int main(void) {
 
 				tickToLossOfConnectionModbus = 0;
 
-				PINA = (1 << LED_VD20);
+				PORTA &= ~(1 << TP3);
+				PORTA |= (1 << LED_VD20);
 			}
 
 			if (drModbus.isSendData()) {
+				_delay_us(100);
+				PORTA |= (1 << TP4);
 				// отключение прерывания приемника
 				UCSR1B &= ~(1 << RXCIE1);
 				// включение прерывания передатчика
 				UDR1 = drModbus.pull();
 				UCSR1B |= (1 << UDRIE1) | (1 << TXCIE1);
 			}
-			PORTA &= ~(1 << TP4);
+
 		}
 
 
@@ -295,6 +303,7 @@ ISR(USART1_RX_vect) {
 		drModbus.setReadState();
 	} else {
 		drModbus.push(byte);
+		PORTA |= (1 << TP3);
 	}
 }
 
@@ -321,6 +330,7 @@ ISR(USART1_TX_vect) {
 	UCSR1B  &= ~(1 << TXCIE1);
 	UCSR1B  |= (1 << RXCIE1);
 
+	PORTA &= ~(1 << TP4);
 	drModbus.setReadState();
 }
 
