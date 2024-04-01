@@ -111,7 +111,6 @@ void disableDrIO()
  */
 __attribute__((OS_main)) int main(void)
 {
-
     uint8_t com    = 0;
     uint8_t error  = 0;
     uint8_t regime = 0;
@@ -140,10 +139,13 @@ __attribute__((OS_main)) int main(void)
 
             // передача двух байт данных в БСП, если сдвиговый регистр пуст
             while (!(UCSR0A & (1 << UDRE0)))
-                ;
+            {
+            };
             UDR0 = bsp.bufTx[0];
+
             while (!(UCSR0A & (1 << UDRE0)))
-                ;
+            {
+            };
             UDR0 = bsp.bufTx[1];
 
             // установка значения на выходе ТМ
