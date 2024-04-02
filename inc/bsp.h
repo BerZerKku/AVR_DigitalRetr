@@ -183,7 +183,7 @@ public:
         }
         else
         {
-            if (byte == bufRx)
+            if (byte == bufRx && byte != 0xFF)
             {
                 newData = true;
                 bufRx   = 0xFF;
@@ -196,7 +196,7 @@ public:
                         byte = byte & 0x1F;
                         if (byte <= 3)
                         {
-                            regime = byte & 0x3F;
+                            regime = byte;
                         }
                     }
                 }
