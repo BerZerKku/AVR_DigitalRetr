@@ -166,22 +166,33 @@ __attribute__((OS_main)) int main(void)
         {
             dr.disable();
             PORTC |= (1 << TM_TX);
+            PORTA &= ~(1 << LED_VD20);
+        }
+        else
+        {
+            PORTA |= (1 << LED_VD20);
         }
 
         // выключение приема/передачи по ЦПП в случае режима "Выключен"
         // и включение в противном случае
         if (dr.getError() == dr.ERR_OFF)
         {
-            PORTA |= (1 << TP3);
             disableDrIO();
-            PORTA &= ~(1 << TP3);
         }
         else
         {
             enableDrIO();
         }
 
-        PINA |= (1 << LED_VD19);
+        if (dr.getError() != dr.ERR_NO)
+        {
+            PORTA &= ~(1 << LED_VD19);
+        }
+        else
+        {
+            PORTA |= (1 << LED_VD19);
+        }
+
         wdt_reset();
     }
 }
