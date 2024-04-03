@@ -188,6 +188,10 @@ public:
                 newData = true;
                 bufRx   = 0xFF;
                 error   = 0;
+
+                //
+                tmTx = byte & 0x40;
+
                 // приняты достоверные данные
                 if (byte & 0x80)
                 {
@@ -204,8 +208,6 @@ public:
                 {
                     com = byte & 0x3F;
                 }
-
-                tmTx = byte & 0x40;
             }
             else
             {
