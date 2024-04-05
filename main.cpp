@@ -115,6 +115,10 @@ __attribute__((OS_main)) int main(void)
     uint8_t error  = 0;
     uint8_t regime = 0;
 
+    uint16_t       counter     = 0;
+    const uint16_t counter_max = 1000;
+    const uint16_t counter_thd = 10;  // порог предупреждения 10
+
     disableDrIO();
     sei();
 
@@ -146,7 +150,33 @@ __attribute__((OS_main)) int main(void)
             while (!(UCSR0A & (1 << UDRE0)))
             {
             };
-            UDR0 = bsp.bufTx[1];
+
+            // vvvvv Добавить ошибки в передачу данных на БСП
+
+            //            if (counter < counter_thd)
+            //            {
+            //                bsp.bufTx[1] ^= 0x02;
+            //            }
+            //            UDR0 = bsp.bufTx[1];
+            //
+            //            counter++;
+            //            if (counter >= counter_max)
+            //                counter = 0;
+
+            // ^^^^
+
+            // vvvvv Отсутствует передача в БСП одного байта данных
+
+            if (counter >= counter_thd)
+            {
+                UDR0 = bsp.bufTx[1];
+            }
+
+            counter++;
+            if (counter >= counter_max)
+                counter = 0;
+
+            // ^^^^
 
             // установка значения на выходе ТМ
             if (bsp.tmTx)
