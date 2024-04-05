@@ -35,22 +35,25 @@
  * @see ERRORS_TO_FAULT
  * @see MAX_ERRORS
  */
-class TDigitalRetrans {
+class TDigitalRetrans
+{
 public:
-	/// Режимы работы цифрового переприема
-	enum REG_DR {
-		REG_OFF 	= 1,	///< Выключен.
-		REG_RX_KEDR = 2,	///< Приемник КЕДР
-		REG_TX_KEDR = 3		///< Передатчик КЕДР
-	};
+    /// Режимы работы цифрового переприема
+    enum REG_DR
+    {
+        REG_OFF     = 1,  ///< Выключен.
+        REG_RX_KEDR = 2,  ///< Приемник КЕДР
+        REG_TX_KEDR = 3   ///< Передатчик КЕДР
+    };
 
-	/// Ошибки в работе модуля ЦПП
-	enum ERR_DR {
-		ERR_NO		= 0,	///< Ошибок нет
-		ERR_OFF		= 1,	///< Модуль ЦПП выключен
-		ERR_RX		= 2,	///< Предупреждение, об ошибках в связи ЦПП
-		ERR_TX		= 3		///< Ошибка в связи ЦПП
-	};
+    /// Ошибки в работе модуля ЦПП
+    enum ERR_DR
+    {
+        ERR_NO  = 0,  ///< Ошибок нет
+        ERR_OFF = 1,  ///< Модуль ЦПП выключен
+        ERR_RX  = 2,  ///< Предупреждение, об ошибках в связи ЦПП
+        ERR_TX  = 3   ///< Ошибка в связи ЦПП
+    };
 
 protected:
     /// Максимальное кол-во байт в послыке протокола КЕДР.
@@ -69,39 +72,42 @@ protected:
     const static uint8_t MAX_NUM_COM = 32;
 
 
-    VOLATILE bool connect; 		///< Флаг наличия связи по ЦПП.
-    VOLATILE REG_DR regime;		///< Режим работы модуля ЦПП.
+    VOLATILE bool   connect;  ///< Флаг наличия связи по ЦПП.
+    VOLATILE REG_DR regime;   ///< Режим работы модуля ЦПП.
 
     // переменные необходимые для приема
-    uint8_t mCodeToCom[256]; 	///< Таблица код ЦПП -> команда.
-    VOLATILE uint8_t error;		///< Флаг ошибки ЦПП.
-    VOLATILE uint8_t comRx; 	///< Команда считанная по ЦПП.
-    uint8_t oldCom; 			///< Команда в последней посылке.
-    uint8_t cntPckgRx; 			///< Кол-во принятых(переданных) посылок.
-    uint8_t stepRx; 			///< Текущий шаг приема по протоколу.
-    uint8_t crcRx;				///< Контрольная сумма полученной посылки.
+    uint8_t          mCodeToCom[256];  ///< Таблица код ЦПП -> команда.
+    VOLATILE uint8_t error;            ///< Флаг ошибки ЦПП.
+    VOLATILE uint8_t comRx;            ///< Команда считанная по ЦПП.
+    uint8_t          oldCom;           ///< Команда в последней посылке.
+    uint8_t          cntPckgRx;        ///< Кол-во принятых(переданных) посылок.
+    uint8_t          stepRx;           ///< Текущий шаг приема по протоколу.
+    uint8_t          crcRx;            ///< Контрольная сумма полученной посылки.
 
     // переменные необходимые для передачи
-    uint8_t mComToCode[MAX_NUM_COM + 1] [8];	///< Таблица команда -> код ЦПП.
-    VOLATILE uint8_t comTx;		///< Команда передваемая по ЦПП.
-    uint8_t stepTx; 			///< Текущий шаг передачи по протоколу.
-    uint8_t cntPackgTx;			///< Счетчик переданных пакетов
+    uint8_t          mComToCode[MAX_NUM_COM + 1][8];  ///< Таблица команда -> код ЦПП.
+    VOLATILE uint8_t comTx;                           ///< Команда передваемая по ЦПП.
+    uint8_t          stepTx;                          ///< Текущий шаг передачи по протоколу.
+    uint8_t          cntPackgTx;                      ///< Счетчик переданных пакетов
 
     /**	Заполнение таблицы сответствия кода ЦПП - номер команды.
      *
      *	Используется для уменьшения времени преобразования код -> команда.
      *	Где номеру установленного бита соответствует номеру команды.
      */
-    void createTableCodeToCom() {
+    void createTableCodeToCom()
+    {
         mCodeToCom[0] = 0;
         // заполнение массива значениями 0xFF, т.е. ошибкой
-        for (uint16_t i = 1, temp = 0x01; i < 256; i++) {
+        for (uint16_t i = 1, temp = 0x01; i < 256; i++)
+        {
             mCodeToCom[i] = 0xFF;
-            temp = (temp & 0x80) ? 0x01 : temp << 1;
+            temp          = (temp & 0x80) ? 0x01 : temp << 1;
         }
         // заполнение массива нужными значениями
         // т.е. массив[код команды ЦПП] = номер команды
-        for (uint8_t i = 0; i < 8; i++) {
+        for (uint8_t i = 0; i < 8; i++)
+        {
             mCodeToCom[(1 << i)] = i + 1;
         }
     }
@@ -111,25 +117,28 @@ protected:
      * 	Используется для уменьшения времени преобразования команда -> код.
      * 	Где номеру команды соответствует массив данных для передачи
      */
-    void createTableComToCode() {
-    	// заполнение всего массива кодами для 0-ой команды
-    	for(uint8_t i = 0; i <= MAX_NUM_COM; i++) {
-    		mComToCode[i][0] = 0;
-    		mComToCode[i][1] = 0xFF;
-    		mComToCode[i][2] = 0;
-    		mComToCode[i][3] = 0xFF;
-    		mComToCode[i][4] = 0;
-    		mComToCode[i][5] = 0xFF;
-    		mComToCode[i][6] = 0;
-    		mComToCode[i][7] = 0xFF;
-    	}
+    void createTableComToCode()
+    {
+        // заполнение всего массива кодами для 0-ой команды
+        for (uint8_t i = 0; i <= MAX_NUM_COM; i++)
+        {
+            mComToCode[i][0] = 0;
+            mComToCode[i][1] = 0xFF;
+            mComToCode[i][2] = 0;
+            mComToCode[i][3] = 0xFF;
+            mComToCode[i][4] = 0;
+            mComToCode[i][5] = 0xFF;
+            mComToCode[i][6] = 0;
+            mComToCode[i][7] = 0xFF;
+        }
 
-    	// заполнение байт команд
-    	for(uint8_t i = 0; i < MAX_NUM_COM; i++) {
-    		uint8_t data = (1 << (i % 8));
-    		mComToCode[i + 1][(i / 8) * 2] = data;
-    		mComToCode[i + 1][(i / 8) * 2 + 1] = ~data;
-    	}
+        // заполнение байт команд
+        for (uint8_t i = 0; i < MAX_NUM_COM; i++)
+        {
+            uint8_t data                       = (1 << (i % 8));
+            mComToCode[i + 1][(i / 8) * 2]     = data;
+            mComToCode[i + 1][(i / 8) * 2 + 1] = ~data;
+        }
     }
 
     /**	Формирование новой посылки для передачи по ЦПП.
@@ -137,40 +146,43 @@ protected:
      * 	В случае если ЦПП выключен или работает в режиме Передатчик КЕДР,
      * 	передаваемая команда всегда считается 0. Если команда есть, то
      *  необходимо передать MAX_NUM_PACKG, иначе только 1.
-     * 
+     *
      *  После формирования пакета номер команды на передачу сбрасывается в 0.
-     * 
+     *
      *  @see MAX_NUM_PACKG
-     * 
+     *
      *  @return Кол-во повторов на передачу для данного пакета.
      *  @retval MAX_NUM_PACKG - в случае наличия команды.
      *  @retval 1 - в случае нулевой команды или ошибки.
      */
-    INLINE uint8_t crtTxNewData() {
+    INLINE uint8_t crtTxNewData()
+    {
         uint8_t num = 1;
         uint8_t com = comTx;
 
-        if (com != 0) {
-        	comTx = 0;
+        if (com != 0)
+        {
+            comTx = 0;
 
-        	// проверка на допустимый диапазон значений для команды
-        	if (com > MAX_NUM_COM)
-        		com = 0;
+            // проверка на допустимый диапазон значений для команды
+            if (com > MAX_NUM_COM)
+                com = 0;
 
-        	// команда передается по ЦПП только в режиме Приемник КЕДР
-			if (regime != REG_RX_KEDR)
-				com = 0;
+            // команда передается по ЦПП только в режиме Приемник КЕДР
+            if (regime != REG_RX_KEDR)
+                com = 0;
 
-			// для команды формируется MAX_NUM_PACKG кол-во пакетов передаваемых
-			// в ЦПП, иначе только 1
-			if (com != 0)
-				num = MAX_NUM_PACKG;
+            // для команды формируется MAX_NUM_PACKG кол-во пакетов передаваемых
+            // в ЦПП, иначе только 1
+            if (com != 0)
+                num = MAX_NUM_PACKG;
         }
-        
-    	uint8_t size = sizeof(mComToCode[0]) / sizeof(mComToCode[0][0]);
-    	for(uint8_t i = 0; i < size; i++) {
-    		bufTx[i + 2] = mComToCode[com][i];
-    	}
+
+        uint8_t size = sizeof(mComToCode[0]) / sizeof(mComToCode[0][0]);
+        for (uint8_t i = 0; i < size; i++)
+        {
+            bufTx[i + 2] = mComToCode[com][i];
+        }
 
         comTx = 0;
         return num;
@@ -190,24 +202,25 @@ protected:
      *
      *	@see CNT_ERROR
      */
-    INLINE void resetProtocol() {
-    	connect = false;
-        
-    	error = CNT_ERROR;
-        comRx = 0;
-    	cntPckgRx = 0;
-    	stepRx = 0;
-    	crcRx = 0;
-        oldCom = 0;
-        
+    INLINE void resetProtocol()
+    {
+        connect = false;
 
-    	comTx = 0;
-    	stepTx = MAX_STEP;
-    	cntPackgTx = 0;
+        error     = CNT_ERROR;
+        comRx     = 0;
+        cntPckgRx = 0;
+        stepRx    = 0;
+        crcRx     = 0;
+        oldCom    = 0;
+
+
+        comTx      = 0;
+        stepTx     = MAX_STEP;
+        cntPackgTx = 0;
     }
 
-    uint8_t bufRx[MAX_STEP + 5]; ///< Буфер приемника.
-    uint8_t bufTx[MAX_STEP + 5]; ///< Буфер передатчика.
+    uint8_t bufRx[MAX_STEP + 5];  ///< Буфер приемника.
+    uint8_t bufTx[MAX_STEP + 5];  ///< Буфер передатчика.
 
 public:
 
@@ -220,7 +233,8 @@ public:
      *
      *	@see REG_OFF
      */
-    TDigitalRetrans() {
+    TDigitalRetrans()
+    {
         regime = REG_OFF;
 
         resetProtocol();
@@ -230,15 +244,15 @@ public:
         bufRx[1] = 0xAA;
 
         // заполнение буфера для передачи
-        bufTx[0] = 0xAA;	// синхробайты
+        bufTx[0] = 0xAA;  // синхробайты
         bufTx[1] = 0xAA;
         // ... 8 байт данных
-        bufTx[10] = 0x00;	// резервный байты
+        bufTx[10] = 0x00;  // резервный байты
         bufTx[11] = 0x00;
         bufTx[12] = 0x00;
         bufTx[13] = 0x00;
         bufTx[14] = 0x00;
-        bufTx[15] = 0x50;	// контрольная сумма
+        bufTx[15] = 0x50;  // контрольная сумма
 
         createTableComToCode();
         createTableCodeToCom();
@@ -253,13 +267,14 @@ public:
      * 	такой чтобы за это время могло приняться пара посылок по ЦПП.
      *
      */
-    INLINE void checkConnect() {
-    	if (!connect) {
-    		setError();
-    	}
-    	connect = false;
+    INLINE void checkConnect()
+    {
+        if (!connect)
+        {
+            setError();
+        }
+        connect = false;
     }
-
 
     /**	Проверка наличия ошибок в принятых пакетах ЦПП.
      *
@@ -268,9 +283,7 @@ public:
      * 	@retval True - есть ошибки.
      * 	@retval False - ошибок нет.
      */
-    INLINE bool isWarning() const {
-        return (error > 0);
-    }
+    INLINE bool isWarning() const { return (error > 0); }
 
     /** Проверка ошибки работы ЦПП.
      *
@@ -278,9 +291,7 @@ public:
      *
      * 	@retval True - ЦПП работает с ошибками, False - иначе.
      */
-    INLINE bool isError() const {
-    	return (error >= ERRORS_TO_FAULT);
-    }
+    INLINE bool isError() const { return (error >= ERRORS_TO_FAULT); }
 
     /** Возвращает текущее значение неисправности ЦПП.
      *
@@ -296,26 +307,28 @@ public:
      *
      * 	@return Текущий код ошибки или ERR_NO при их отсутствии.
      */
-    INLINE uint8_t getError() {
-    	ERR_DR err = ERR_NO;
+    INLINE uint8_t getError()
+    {
+        ERR_DR err = ERR_NO;
 
-    	switch(regime) {
-    		case REG_OFF:
-    			err = ERR_OFF;
-    			break;
-    		case REG_TX_KEDR:
-    			if (isError()) {
-    				err = ERR_TX;
-    			}
-    			break;
-    		case REG_RX_KEDR:
-    			if (isError()) {
-    				err = ERR_RX;
-    			}
-    			break;
-    	}
+        switch (regime)
+        {
+        case REG_OFF: err = ERR_OFF; break;
+        case REG_TX_KEDR:
+            if (isError())
+            {
+                err = ERR_TX;
+            }
+            break;
+        case REG_RX_KEDR:
+            if (isError())
+            {
+                err = ERR_RX;
+            }
+            break;
+        }
 
-    	return static_cast<uint8_t> (err);
+        return static_cast<uint8_t>(err);
     }
 
     /** Установка наличия ошибки в принятых пакетах ЦПП.
@@ -327,20 +340,24 @@ public:
      * 	@see MAX_ERRORS
      * 	@see CNT_ERROR
      */
-    INLINE void setError() {
-        if (error <= (MAX_ERRORS - CNT_ERROR)) {
+    INLINE void setError()
+    {
+        if (error <= (MAX_ERRORS - CNT_ERROR))
+        {
             error += CNT_ERROR;
         }
         cntPckgRx = 0;
-        oldCom = 0;
+        oldCom    = 0;
     }
 
     /** Уменьшение кол-ва ошибок в принятых пакетах ЦПП.
      *
      * 	Если значение счетчика больше нуля, то оно уменьшается на единицу.
      */
-    INLINE void decError() {
-        if (error > 0) {
+    INLINE void decError()
+    {
+        if (error > 0)
+        {
             error--;
         }
     }
@@ -348,9 +365,7 @@ public:
     /** Сбрасывает кол-во ошибок в принятых пакетах ЦПП.
      *
      */
-    INLINE void clrError() {
-        error = 0;
-    }
+    INLINE void clrError() { error = 0; }
 
     /**	Установка нового режима работы.
      *
@@ -361,58 +376,64 @@ public:
      *	@see REG_DR
      *  @param val Новый режим работы.
      */
-	INLINE void setRegime(uint8_t val) {
-		if (val != 0) {
-			REG_DR reg = static_cast<REG_DR>(val);
-			switch (reg) {
-				case REG_OFF:
-				case REG_RX_KEDR:
-				case REG_TX_KEDR: {
-					if (reg != regime) {
-						regime = reg;
-						resetProtocol();
-					}
-					break;
-				}
-			}
-		}
-	}
+    INLINE void setRegime(uint8_t val)
+    {
+        if (val != 0)
+        {
+            REG_DR reg = static_cast<REG_DR>(val);
+            switch (reg)
+            {
+            case REG_OFF:
+            case REG_RX_KEDR:
+            case REG_TX_KEDR:
+                {
+                    if (reg != regime)
+                    {
+                        regime = reg;
+                        resetProtocol();
+                    }
+                    break;
+                }
+            }
+        }
+    }
 
-	/** Отключение ЦПП.
-	 *
-	 * 	Режим работы изменяется на \a REG_OFF.
-	 */
-	void disable() {
-		setRegime(REG_OFF);
-	}
+    /** Отключение ЦПП.
+     *
+     * 	Режим работы изменяется на \a REG_OFF.
+     */
+    void disable() { setRegime(REG_OFF); }
 
-	/** Запись команды для передачи по ЦПП.
-	 *
-	 *	В случае если еще не передана предыдущая команда или данная команда
-	 *	выходит за допустимый диапазон, т.е. больше \a MAX_NUM_COM, запись
-	 *	новой команды не произойдет.
-	 *
-	 *	@see MAX_NUM_COM
-	 *	@param val Номер команды для передачи по ЦПП.
-	 *	@return True - успешная запись команды, False - иначе.
-	 */
-	INLINE bool setCom(uint8_t val) {
-		bool state = false;
-		if (val != 0) {
-			switch (regime) {
-				case REG_RX_KEDR:
-					if ((comTx == 0) && (val <= MAX_NUM_COM)) {
-						comTx = val;
-						state = true;
-					}
-					break;
-				case REG_OFF:
-				case REG_TX_KEDR:
-					break;
-			}
-		}
-		return state;
-	}
+    /** Запись команды для передачи по ЦПП.
+     *
+     *	В случае если еще не передана предыдущая команда или данная команда
+     *	выходит за допустимый диапазон, т.е. больше \a MAX_NUM_COM, запись
+     *	новой команды не произойдет.
+     *
+     *	@see MAX_NUM_COM
+     *	@param val Номер команды для передачи по ЦПП.
+     *	@return True - успешная запись команды, False - иначе.
+     */
+    INLINE bool setCom(uint8_t val)
+    {
+        bool state = false;
+        if (val != 0)
+        {
+            switch (regime)
+            {
+            case REG_RX_KEDR:
+                if ((comTx == 0) && (val <= MAX_NUM_COM))
+                {
+                    comTx = val;
+                    state = true;
+                }
+                break;
+            case REG_OFF:
+            case REG_TX_KEDR: break;
+            }
+        }
+        return state;
+    }
 
     /**	Возвращает номер принятой команды.
      *
@@ -426,21 +447,21 @@ public:
      *
      * 	@return Номер команды [0, MAX_NUM_COM].
      */
-    INLINE uint8_t getCom() {
-    	uint8_t com = 0;
+    INLINE uint8_t getCom()
+    {
+        uint8_t com = 0;
 
-    	if (isError()) {
-    		comRx = 0;
-    	}
+        if (isError())
+        {
+            comRx = 0;
+        }
 
-    	switch(regime) {
-    		case REG_TX_KEDR:
-    			com = comRx;
-    			break;
-    		case REG_OFF:
-    		case REG_RX_KEDR:
-    			break;
-    	}
+        switch (regime)
+        {
+        case REG_TX_KEDR: com = comRx; break;
+        case REG_OFF:
+        case REG_RX_KEDR: break;
+        }
 
         return com;
     }
@@ -454,20 +475,28 @@ public:
      *
      * 	@see comRx
      */
-    INLINE void checkCommand() {
+    INLINE void checkCommand()
+    {
         uint8_t newcom = 0;
 
-        for (unsigned char i = 2, tCom = 0; i < 10; i += 2, tCom += 8) {
+        for (unsigned char i = 2, tCom = 0; i < 10; i += 2, tCom += 8)
+        {
             uint8_t temp = mCodeToCom[bufRx[i]];
             // если число не подходящее - вернуть ошибочный код
-            if (temp > 8) {
+            if (temp > 8)
+            {
                 // в текущем байте обнаружено более одной команды
                 newcom = 0xFF;
                 break;
-            } else if (temp != 0) {
-                if (newcom == 0) {
+            }
+            else if (temp != 0)
+            {
+                if (newcom == 0)
+                {
                     newcom = tCom + temp;
-                } else {
+                }
+                else
+                {
                     // в посылке обнаружено более одной команды
                     newcom = 0xFF;
                     break;
@@ -476,24 +505,31 @@ public:
         }
 
         // проверка номера команды на максимум
-        if (newcom > MAX_NUM_COM) {
+        if (newcom > MAX_NUM_COM)
+        {
             setError();
         }
 
         // запись принятой команды, в случае если отсутствуют ошибки в работе
         // ЦПП и кол-во принятых пакетов с этой командой не менее CNT_COM.
-        if (!isWarning()) {
-        	if (oldCom == newcom) {
-        		if (cntPckgRx < CNT_COM) {
-        			cntPckgRx++;
-					if (cntPckgRx >= CNT_COM) {
-						comRx = newcom;
-					}
-        		}
-        	} else {
-        		oldCom = newcom;
-        		cntPckgRx = 1;
-        	}
+        if (!isWarning())
+        {
+            if (oldCom == newcom)
+            {
+                if (cntPckgRx < CNT_COM)
+                {
+                    cntPckgRx++;
+                    if (cntPckgRx >= CNT_COM)
+                    {
+                        comRx = newcom;
+                    }
+                }
+            }
+            else
+            {
+                oldCom    = newcom;
+                cntPckgRx = 1;
+            }
         }
     }
 
@@ -528,53 +564,79 @@ public:
      *	@param byte Байт данных.
      *	@param status Статус источника данных, True - ошибка.
      */
-    INLINE void checkByteProtocol(uint8_t byte, bool status) {
+    INLINE void checkByteProtocol(uint8_t byte, bool status)
+    {
         // проверка полученного байта по протоколу
-        if (status) {
+        if (status)
+        {
             stepRx = MAX_STEP;
-        } else {
+        }
+        else
+        {
             bufRx[stepRx] = byte;
-            if (stepRx == 0) {
+            if (stepRx == 0)
+            {
                 // первый синхробайт 0хAA
-                if (byte == 0xAA) {
+                if (byte == 0xAA)
+                {
                     stepRx = 1;
-                    crcRx = byte;
+                    crcRx  = byte;
                 }
-            } else if (stepRx == 1) {
+            }
+            else if (stepRx == 1)
+            {
                 // второй синхробайт 0хАА
                 // при этом устанавливается флаг наличия связи
-                if (byte == 0xAA) {
-                    stepRx = 2;
+                if (byte == 0xAA)
+                {
+                    stepRx  = 2;
                     connect = true;
                     crcRx += byte;
-                } else {
+                }
+                else
+                {
                     stepRx = 0;
                 }
-            } else if (stepRx <= 9) {
+            }
+            else if (stepRx <= 9)
+            {
                 // 4 прямой + инверсный байта команд
                 // прямой байт записывается в буфер
                 // инверсный сравнивается с ним
-            	crcRx += byte;
-                if ((stepRx % 2) == 0) {
+                crcRx += byte;
+                if ((stepRx % 2) == 0)
+                {
                     stepRx++;
-                } else {
-                    if ((byte ^ bufRx[stepRx - 1]) == 0xFF) {
+                }
+                else
+                {
+                    if ((byte ^ bufRx[stepRx - 1]) == 0xFF)
+                    {
                         bufRx[stepRx++] = byte;
-                    } else {
+                    }
+                    else
+                    {
                         // ошибка, прямой байт команды не равен инверсному
                         stepRx = MAX_STEP;
                     }
                 }
-            } else if (stepRx <= 14) {
-            	// 5 резервных байт данных
-            	crcRx += byte;
+            }
+            else if (stepRx <= 14)
+            {
+                // 5 резервных байт данных
+                crcRx += byte;
                 stepRx++;
-            } else if (stepRx == 15) {
+            }
+            else if (stepRx == 15)
+            {
                 // проверка контрольной суммы
-                if (byte == crcRx) {
+                if (byte == crcRx)
+                {
                     stepRx = 0;
                     checkCommand();
-                } else {
+                }
+                else
+                {
                     // ошибка контрольной суммы
                     stepRx = MAX_STEP;
                 }
@@ -583,7 +645,8 @@ public:
 
         // в случае ошибки обработки протокола
         // возвращаемся к поиску синхробайт и устанавливаем ошибку
-        if (stepRx >= MAX_STEP) {
+        if (stepRx >= MAX_STEP)
+        {
             stepRx = 0;
             setError();
         }
@@ -598,17 +661,20 @@ public:
      *
      * 	@return Следующий байт на передачу.
      */
-    INLINE uint8_t getTxByte() {
-    	if (stepTx >= MAX_STEP) {	
-			if (cntPackgTx == 0) {
-				// формирование новой посылки на передачу
-				cntPackgTx = crtTxNewData();
-			} 
+    INLINE uint8_t getTxByte()
+    {
+        if (stepTx >= MAX_STEP)
+        {
+            if (cntPackgTx == 0)
+            {
+                // формирование новой посылки на передачу
+                cntPackgTx = crtTxNewData();
+            }
             stepTx = 0;
             cntPackgTx--;
-    	}
+        }
 
-    	return bufTx[stepTx++];
+        return bufTx[stepTx++];
     }
 };
 

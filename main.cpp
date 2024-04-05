@@ -5,13 +5,13 @@
  *      Author: Shcheblykin
  */
 
-#include <avr/io.h>
-#include <avr/interrupt.h>
-#include <avr/wdt.h>
-#include "inc/dr.h"
 #include "inc/bsp.h"
+#include "inc/dr.h"
+#include <avr/interrupt.h>
+#include <avr/io.h>
+#include <avr/wdt.h>
 
-#define VERS 0x0102
+#define VERS 0x0105
 
 /**
  *	@mainpage MainPage
@@ -48,23 +48,23 @@
 //---МАКРОПОДСТАНОВКИ-----------------------------------------------------------
 
 //-----	Тестовые сигналы
-#define LED_VD20 PA0	///< Пин подключения отладочного светодиода VD20.
-#define LED_VD19 PA1	///< Пин подключения отладочного светодиода VD19.
-#define TP3 PA2			///< Пин подключения отладочной тестовой точки TP3.
-#define TP4 PA3			///< Пин подключения отладочной тестовой точки TP4.
+#define LED_VD20 PA0  ///< Пин подключения отладочного светодиода VD20.
+#define LED_VD19 PA1  ///< Пин подключения отладочного светодиода VD19.
+#define TP3      PA2  ///< Пин подключения отладочной тестовой точки TP3.
+#define TP4      PA3  ///< Пин подключения отладочной тестовой точки TP4.
 
 //-----	Телемеханика
-#define TM_RX PC3		///< Пин подключения входа Телемеханики.
-#define TM_TX PC2		///< Пин подключения выхода Телемеханики.
+#define TM_RX PC3  ///< Пин подключения входа Телемеханики.
+#define TM_TX PC2  ///< Пин подключения выхода Телемеханики.
 
 //----- Цифровая ретрансляция
-#define DR_RX PD2 		///< Пин подключения входа ЦПП.
-#define DR_TX PD3 		///< Пин подключения выхода ЦПП.
-#define DR_EN PD4 		///< Пин управления ЦПП.
+#define DR_RX PD2  ///< Пин подключения входа ЦПП.
+#define DR_TX PD3  ///< Пин подключения выхода ЦПП.
+#define DR_EN PD4  ///< Пин управления ЦПП.
 
 //----- Связь с БСП
-#define BSP_RX PD0		///< Пин подключения входа БСП.
-#define BSP_TX PD1		///< Пин подключения выхода БСП.
+#define BSP_RX PD0  ///< Пин подключения входа БСП.
+#define BSP_TX PD1  ///< Пин подключения выхода БСП.
 
 /// Размещение в области начальной инициализации
 #define INITSECTION __attribute__((section(".init3")))
@@ -73,36 +73,34 @@
 //---ОПИСАНИЕ СТРУКТУР----------------------------------------------------------
 
 
-
 //---ОБЪЯВЛЕНИЯ ФУНКЦИЙ---------------------------------------------------------
 
 INITSECTION __attribute__((__naked__)) void low_level_init();
-static inline void enableDrIO();
-static inline void disableDrIO();
+static inline void                          enableDrIO();
+static inline void                          disableDrIO();
 
 //---ПЕРЕМЕННЫЕ-----------------------------------------------------------------
 
-TDigitalRetrans dr;	///< Класс работы с ЦПП
-TBsp bsp;			///< Класс работы с БСП.
-
+TDigitalRetrans dr;   ///< Класс работы с ЦПП
+TBsp            bsp;  ///< Класс работы с БСП.
 
 //---ОПРЕДЕЛЕНИЯ ФУНКЦИЙ--------------------------------------------------------
 
 /**	Разрешение работы преобразователя UART <-> RS422.
  *
  */
-void enableDrIO() {
-	PORTD |= (1 << DR_EN);
+void enableDrIO()
+{
+    PORTD |= (1 << DR_EN);
 }
-
 
 /** Запрет работы преобразователя UART <-> RS422.
  *
  */
-void disableDrIO() {
-	PORTD &= ~(1 << DR_EN);
+void disableDrIO()
+{
+    PORTD &= ~(1 << DR_EN);
 }
-
 
 /** Main.
  *
@@ -111,176 +109,202 @@ void disableDrIO() {
  *
  * 	@return Нет.
  */
-__attribute__ ((OS_main)) int main(void) {
+__attribute__((OS_main)) int main(void)
+{
+    uint8_t com    = 0;
+    uint8_t error  = 0;
+    uint8_t regime = 0;
 
-	uint8_t com = 0;
-	uint8_t error = 0;
-	uint8_t regime = 0;
+    disableDrIO();
+    sei();
 
-	disableDrIO();
-	sei();
+    while (1)
+    {
+        // получена посылка с БСП, надо обработать и ответить
+        if (bsp.isNewData())
+        {
+            PORTA |= (1 << TP4);
+            // установка режима работы
+            regime = bsp.getRegime();
+            dr.setRegime(regime);
+            // запись команды на передачу
+            com = bsp.getCom();
+            dr.setCom(com);
 
-	while(1) {
-		// получена посылка с БСП, надо обработать и ответить
-		if (bsp.isNewData()) {
-			PORTA |= (1 << TP4);
-			// установка режима работы
-			regime = bsp.getRegime();
-			dr.setRegime(regime);
-			// запись команды на передачу
-			com = bsp.getCom();
-			dr.setCom(com);
+            // подготовка данных для отправки в БСП
+            bsp.tmRx = (PINC & (1 << TM_RX));  //текущий уровень входа ТМ
+            com      = dr.getCom();
+            error    = dr.getError();
+            bsp.makeTxData(com, error);
 
-			// подготовка данных для отправки в БСП
-			bsp.tmRx = (PINC & (1 << TM_RX));	//текущий уровень входа ТМ
-			com = dr.getCom();
-			error = dr.getError();
-			bsp.makeTxData(com, error);
+            // передача двух байт данных в БСП, если сдвиговый регистр пуст
+            while (!(UCSR0A & (1 << UDRE0)))
+            {
+            };
+            UDR0 = bsp.bufTx[0];
 
-			// передача двух байт данных в БСП, если сдвиговый регистр пуст
-			while(!(UCSR0A & (1 << UDRE0)));
-			UDR0 = bsp.bufTx[0];
-			while(!(UCSR0A & (1 << UDRE0)));
-			UDR0 = bsp.bufTx[1];
+            while (!(UCSR0A & (1 << UDRE0)))
+            {
+            };
+            UDR0 = bsp.bufTx[1];
 
-			// установка значения на выходе ТМ
-			if (bsp.tmTx) {
-				PORTC = (1 << TM_TX);
-			} else {
-				PORTC &= ~(1 << TM_TX);
-			}
-			PORTA &= ~(1 << TP4);
-		}
+            // установка значения на выходе ТМ
+            if (bsp.tmTx)
+            {
+                PORTC |= (1 << TM_TX);
+            }
+            else
+            {
+                PORTC &= ~(1 << TM_TX);
+            }
 
-		// при ошибках связи с БСП выключим ЦПП
-		if (bsp.isError()) {
-			dr.disable();
-		}
+            PORTA &= ~(1 << TP4);
+        }
 
-		// выключение приема/передачи по ЦПП в случае режима "Выключен"
-		// и включение в противном случае
-		if (dr.getError() == dr.ERR_OFF) {
-			PORTA |= (1 << TP3);
-			disableDrIO();
-			PORTA &= ~(1 << TP3);
-		} else {
-			enableDrIO();
-		}
+        // при ошибках связи с БСП выключим ЦПП и ТМ
+        if (bsp.isError())
+        {
+            dr.disable();
+            PORTC |= (1 << TM_TX);
+            PORTA &= ~(1 << LED_VD20);
+        }
+        else
+        {
+            PORTA |= (1 << LED_VD20);
+        }
 
-		PINA |= (1 << LED_VD19);
-		wdt_reset();
-	}
+        // выключение приема/передачи по ЦПП в случае режима "Выключен"
+        // и включение в противном случае
+        if (dr.getError() == dr.ERR_OFF)
+        {
+            disableDrIO();
+        }
+        else
+        {
+            enableDrIO();
+        }
+
+        if (dr.getError() != dr.ERR_NO)
+        {
+            PORTA &= ~(1 << LED_VD19);
+        }
+        else
+        {
+            PORTA |= (1 << LED_VD19);
+        }
+
+        wdt_reset();
+    }
 }
-
 
 /**	Прерывание по свопадению таймера 1.
  *
  *	Уменьшается кол-во текщих ошибок.
  *	Проверяется наличие полученной посылки по ЦПП.
  */
-ISR(TIMER1_COMPA_vect) {
-	dr.decError();
-	dr.checkConnect();
-	bsp.checkConnect();
+ISR(TIMER1_COMPA_vect)
+{
+    dr.decError();
+    dr.checkConnect();
+    bsp.checkConnect();
 }
-
 
 /** Прерывание по приему UART0.
  *
  * 	Прием байта данных от БСП.
  */
-ISR(USART0_RX_vect) {
-	uint8_t status = UCSR0A;	// региcтр состояния
-	uint8_t byte = UDR0;		// регистр данных
+ISR(USART0_RX_vect)
+{
+    uint8_t status = UCSR0A;  // региcтр состояния
+    uint8_t byte   = UDR0;    // регистр данных
 
-	// Обработка данных принятого байта
-	bsp.checkRxProtocol(byte, status & ((1 << FE0) | (1 << DOR0)));
+    // Обработка данных принятого байта
+    bsp.checkRxProtocol(byte, status & ((1 << FE0) | (1 << DOR0) | (1 << UPE0)));
 }
-
 
 /** Прерывание по приему UART1.
  *
  * 	Прием байт данных по ЦПП.
  */
-ISR(USART1_RX_vect) {
-	uint8_t status = UCSR1A;	// регистр состояния
-	uint8_t byte = UDR1;		// регистр данных
+ISR(USART1_RX_vect)
+{
+    uint8_t status = UCSR1A;  // регистр состояния
+    uint8_t byte   = UDR1;    // регистр данных
 
-	// Обработка принятого байта
-	dr.checkByteProtocol(byte, status & ((1 << FE1) | (1 << DOR1)));
+    // Обработка принятого байта
+    dr.checkByteProtocol(byte, status & ((1 << FE1) | (1 << DOR1)));
 }
-
 
 /** Прерывание по опустошению буфера передачи UART1.
  *
  * 	Передача байт данных по ЦПП.
  */
-ISR(USART1_UDRE_vect) {
-	UDR1 = dr.getTxByte();
+ISR(USART1_UDRE_vect)
+{
+    UDR1 = dr.getTxByte();
 }
-
 
 /**	Инициализация периферии.
  *
  * 	Функция помещается в начальный загрузчик по адресу ".init3".
  * 	@n Неиспользуемые порты по умолчанию настроены на вход с подтяжкой к +.
  */
-void low_level_init() {
-	// включение сторожевого таймера
-	wdt_enable(WDTO_15MS);
+void low_level_init()
+{
+    // включение сторожевого таймера
+    wdt_enable(WDTO_15MS);
 
-	// порт А
-	// тестовые выходы
-	DDRA = (1 << LED_VD20) | (1 << LED_VD19) | (1 << TP3) | (1 << TP4);
-	PORTA = 0x00;
+    // порт А
+    // тестовые выходы
+    DDRA  = (1 << LED_VD20) | (1 << LED_VD19) | (1 << TP3) | (1 << TP4);
+    PORTA = 0x00;
 
-	// порт C
-	// телемеханика
-	DDRC = (1 << TM_TX) | (0 << TM_RX);
-	PORTC = 0x00;
+    // порт C
+    // телемеханика
+    DDRC  = (1 << TM_TX) | (0 << TM_RX);
+    PORTC = 0x00;
 
-	// PORTD
-	// ЦПП + связь с БСП
-	DDRD = (1 << DR_TX) | (1 << DR_EN) | (0 << DR_RX);
-	DDRD |= (1 << BSP_TX) | (0 << BSP_RX);
-	PORTD = 0;
+    // PORTD
+    // ЦПП + связь с БСП
+    DDRD = (1 << DR_TX) | (1 << DR_EN) | (0 << DR_RX);
+    DDRD |= (1 << BSP_TX) | (0 << BSP_RX);
+    PORTD = 0;
 
-	// UART0
-	// связь с БСП
-	// 38.4бит/с при кварце 20Мгц
-	// включено удвоение скорости работы
-	// 1 стоп бит, 8 бит данных, контроль четности отключен
-	// включено прерывание по приему
-	UBRR0   = 64;
-	UCSR0A  = (1 << U2X0);
-	UCSR0B  = (1 << RXCIE0) | (0 << UCSZ02);
-	UCSR0C  = (1 << UCSZ00) | (1 << UCSZ01);	//  по умолчанию
-	UCSR0B  |= (1 << RXEN0) | (1 << TXEN0);
+    // UART0
+    // связь с БСП
+    // 56кбит/с при кварце 20Мгц с проверкой чётности Even (чёт)
+    // включено удвоение скорости работы
+    // 1 стоп бит, 8 бит данных, контроль четности отключен
+    // включено прерывание по приему
+    UBRR0  = 44;
+    UCSR0A = (1 << U2X0);
+    UCSR0B = (1 << RXCIE0) | (0 << UCSZ02);
+    UCSR0C = (1 << UPM01) | (0 << UPM00) | (1 << UCSZ00) | (1 << UCSZ01);
+    UCSR0B |= (1 << RXEN0) | (1 << TXEN0);
 
-	// UART1
-	// ЦПП
-	// 500бит/с при кварце 20Мгц
-	// включено удвоение скорости работы
-	// 1 стоп бит, 8 бит данных, контроль четности отключен
-	// включены прерывания по приему и опустошению буфера
-	UBRR1   = 4;
-	UCSR1A  = (1 << U2X1);
-	UCSR1B  = (1 << RXCIE1) | (1 << UDRIE1) | (0 << UCSZ12);
-	UCSR1C  = (1 << UCSZ10) | (1 << UCSZ11);	//  по умолчанию
-	UCSR1B  |= (1 << RXEN1) | (1 << TXEN1);
+    // UART1
+    // ЦПП
+    // 500кбит/с при кварце 20Мгц
+    // включено удвоение скорости работы
+    // 1 стоп бит, 8 бит данных, контроль четности отключен
+    // включены прерывания по приему и опустошению буфера
+    UBRR1  = 4;
+    UCSR1A = (1 << U2X1);
+    UCSR1B = (1 << RXCIE1) | (1 << UDRIE1) | (0 << UCSZ12);
+    UCSR1C = (1 << UCSZ10) | (1 << UCSZ11);  //  по умолчанию
+    UCSR1B |= (1 << RXEN1) | (1 << TXEN1);
 
 
-
-	// Таймер 1
-	// режим CTC
-	// делитель N = 8, счет до OCR = 2499
-	// частота = F_CPU / (2 * N * (1 + OCR)
-	// при F_CPU = 20МГц получим 500Гц
-	TCCR1A 	= (0 << WGM11) | (0 << WGM10);
-	TCCR1B 	= (0 << WGM13) | (1 << WGM12);
-	TCCR1C 	= 0;	// по умолчанию
-	TCNT1 	= 0;
-	OCR1A 	= 2499;
-	TIMSK1 	= (1 << OCIE1A);
-	TCCR1B |= (0 << CS12) | (1 << CS11) | (0 << CS10); // запуск с делителем 8
+    // Таймер 1
+    // режим CTC
+    // делитель N = 8, счет до OCR = 2499
+    // частота = F_CPU / (2 * N * (1 + OCR)
+    // при F_CPU = 20МГц получим 500Гц
+    TCCR1A = (0 << WGM11) | (0 << WGM10);
+    TCCR1B = (0 << WGM13) | (1 << WGM12);
+    TCCR1C = 0;  // по умолчанию
+    TCNT1  = 0;
+    OCR1A  = 2499;
+    TIMSK1 = (1 << OCIE1A);
+    TCCR1B |= (0 << CS12) | (1 << CS11) | (0 << CS10);  // запуск с делителем 8
 }
