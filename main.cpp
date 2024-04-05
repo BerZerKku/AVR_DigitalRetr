@@ -11,7 +11,7 @@
 #include <avr/io.h>
 #include <avr/wdt.h>
 
-#define VERS 0x0102
+#define VERS 0x0105
 
 /**
  *	@mainpage MainPage
